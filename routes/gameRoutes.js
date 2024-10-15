@@ -3,6 +3,7 @@ const router = express.Router();
 const supabase = require('../supabase');
 
 // Admin: Create a new game
+// TODO: remove start_times, they are redundant
 router.post('/create', async (req, res) => {
     const { registration_start_date, registration_end_date } = req.body;
 
@@ -271,7 +272,8 @@ async function getActiveGames() {
     const { data: activeGames, error: activeGamesError } = await supabase
     .from('games')
     .select('*')
-    .gt('current_round', 0);  // Game is in progress
+    .gt('current_round', 0)  // Game is in progress
+    .eq('completed', false);  // Only include games that are not completed
 
     if (activeGamesError) throw activeGamesError;
 
@@ -294,22 +296,30 @@ async function processRound(gameId, currentRound) {
 
         const winners = [];
         for (const match of matches) {
-
-            const winnerId = getMatchWinner(match);
-
-            if (winnerId) {
-                await updateWinner(match.id, winnerId);
-            }
+            const winnerId = await getMatchWinner(match);
+            await updateWinner(match.id, winnerId);
+            winners.push(winnerId);
         }
 
         // create next set of matches if necessary
         if (matches.length > 1) {
             // Create next round with winners
             const nextRound = currentRound + 1;
-            advanceRound(gameId, nextRound, winners);
+            console.log("winners: ", winners);
+            await advanceRound(gameId, nextRound, winners);
 
         } else {
-            // Declare the game as completed
+            console.log("completing");
+            // Mark the game as completed in the database
+            const { error: updateGameError } = await supabase
+                .from('games')
+                .update({ completed: true })
+                .eq('id', gameId);
+
+            if (updateGameError) {
+                throw updateGameError;
+            }
+
             console.log(`Game ${gameId} completed. Winner: ${winners[0]}`);
         }
 
@@ -433,10 +443,5 @@ async function updateWinner(matchId, winnerId) {
 
     if (error) throw error;
 }
-
-
-
-
-
 
 module.exports = router;
