@@ -3,7 +3,7 @@ import { supabase } from '../db/supabase';
 import { startReadyGames, processActiveGames, startGame, processRound, getActiveGames, getMatchWinner, advanceRound, updateWinner } from '../services/gameService';
 
 export const createGame = async (req: Request, res: Response) => {
-    const { registration_start_date, game_start_date, max_rounds, sponsor_id } = req.body;
+    const { registration_start_date, game_start_date, max_rounds, sponsor_id, round_length_minutes } = req.body;
 
     try {
         const { data, error } = await supabase
@@ -14,7 +14,8 @@ export const createGame = async (req: Request, res: Response) => {
                 current_round: 0,
                 completed: false,
                 max_rounds,
-                sponsor_id
+                sponsor_id,
+                round_length_minutes
             }])
             .select();
 
@@ -34,19 +35,28 @@ export const registerForGame = async (req: Request, res: Response) => {
     const { fid, gameId } = req.body;
 
     try {
+        // Fetch game details including max_rounds
+        const { data: gameData, error: gameError } = await supabase
+            .from('games')
+            .select('max_rounds')
+            .eq('id', gameId)
+            .single();
+
+        if (gameError) {
+            return res.status(404).send('Game not found');
+        }
+
+        const maxRounds = gameData.max_rounds;
+
+        // check if user exists in db
         const { data: userData, error: userError } = await supabase
             .from('users')
             .select('id')
             .eq('id', fid)
             .single();
 
-        if (userError && userError.code !== 'PGRST116') {
-            return res.status(500).send('Error checking user');
-        }
-
-        let userId = userData?.id;
-        
-        if (!userId) {
+        // add user to db if not exists
+        if (!userData) {
             const { data: newUser, error: createUserError } = await supabase
                 .from('users')
                 .insert({ 
@@ -59,14 +69,27 @@ export const registerForGame = async (req: Request, res: Response) => {
             if (createUserError) {
                 return res.status(500).send('Error creating user');
             }
-            userId = newUser.id;
+        }
+
+        // Check if the game is already full
+        const { count, error: countError } = await supabase
+            .from('user_registration')
+            .select('*', { count: 'exact' })
+            .eq('game_id', gameId);
+
+        if (countError || count === null) {
+            return res.status(500).send('Error checking game capacity');
+        }
+
+        if (count >= 2 ** maxRounds) {
+            return res.status(400).send('Game is already full');
         }
 
         const { error: registrationError } = await supabase
             .from('user_registration')
             .insert([{ 
                 game_id: gameId, 
-                user_id: userId,
+                user_id: fid,
                 registered_at: new Date().toISOString()
             }])
             .select();
@@ -90,33 +113,36 @@ export const makePlay = async (req: Request, res: Response) => {
     }
 
     try {
-        const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('id')
-            .eq('fid', fid)
-            .single();
-
-        if (userError) {
-            return res.status(404).send('User not found');
-        }
-
-        const userId = userData.id;
-
+        // Fetch match data including round start and end times
         const { data: matchData, error: matchError } = await supabase
             .from('matches')
-            .select('player1_id, player2_id, player1_move, player2_move')
+            .select(`
+                id, player1_id, player2_id, player1_move, player2_move,
+                games!inner(id, current_round),
+                rounds!inner(round_number, start_time, end_time)
+            `)
             .eq('id', matchId)
+            .eq('rounds.round_number', 'games.current_round')
             .single();
 
         if (matchError || !matchData) {
             return res.status(404).send('Match not found');
         }
 
+        // Check if the current time is within the round's start and end times
+        const currentTime = new Date();
+        const roundStartTime = new Date(matchData.rounds[0].start_time);
+        const roundEndTime = new Date(matchData.rounds[0].end_time);
+
+        if (currentTime < roundStartTime || currentTime > roundEndTime) {
+            return res.status(400).send('Move not allowed outside of round time');
+        }
+
         let updateField;
 
-        if (matchData.player1_id === userId && !matchData.player1_move) {
+        if (matchData.player1_id === fid && !matchData.player1_move) {
             updateField = 'player1_move';
-        } else if (matchData.player2_id === userId && !matchData.player2_move) {
+        } else if (matchData.player2_id === fid && !matchData.player2_move) {
             updateField = 'player2_move';
         } else {
             return res.status(400).send('Invalid move or move already made');
