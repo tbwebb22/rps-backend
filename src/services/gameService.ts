@@ -30,11 +30,7 @@ export async function processActiveGames() {
         if (roundError) throw roundError;
 
         const currentTime = new Date().toISOString();
-        if (currentTime > roundData.end_time) {
-            await processRound(game.id, game.current_round);
-        } else {
-            console.log(`Round ${game.current_round} for game ${game.id} has not ended yet.`);
-        }
+        if (currentTime > roundData.end_time) await processRound(game.id, game.current_round);
     }
 }
 
@@ -134,7 +130,52 @@ export async function startGame(gameId: number) {
 }
 
 export async function processRound(gameId: number, currentRound: number) {
-    // Implementation
+    console.log(`Processing round ${currentRound} for game ${gameId}`);
+    try {
+        // Fetch matches for the current round
+        const { data: matches, error: matchError } = await supabase
+            .from('matches')
+            .select('*')
+            .eq('game_id', gameId)
+            .eq('round_id', currentRound);
+
+        if (matchError) throw matchError;
+
+        console.log("found following matches for this round: ", matches);
+
+        const winners = [];
+        for (const match of matches) {
+            const winnerId = await getMatchWinner(match);
+            await updateWinner(match.id, winnerId);
+            winners.push(winnerId);
+        }
+
+        // create next set of matches if necessary
+        if (matches.length > 1) {
+            // Create next round with winners
+            const nextRound = currentRound + 1;
+            console.log("winners: ", winners);
+            await advanceRound(gameId, nextRound, winners);
+
+        } else {
+            console.log("completing");
+            // Mark the game as completed in the database
+            const { error: updateGameError } = await supabase
+                .from('games')
+                .update({ completed: true })
+                .eq('id', gameId);
+
+            if (updateGameError) {
+                throw updateGameError;
+            }
+
+            console.log(`Game ${gameId} completed. Winner: ${winners[0]}`);
+        }
+
+        return null;  // Success
+    } catch (error) {
+        return error;
+    }
 }
 
 export async function getActiveGames() {
@@ -155,6 +196,49 @@ export async function getMatchWinner(match: any) {
 
 export async function advanceRound(gameId: number, nextRound: number, players: any[]) {
     // Implementation
+}
+
+export async function createRoundMatches(roundId: number) {
+    try {
+        const matches = [];
+        // Create matches for the next round
+        for (let i = 0; i < players.length; i += 2) {
+            const player1 = players[i];
+            const player2 = (i + 1 < players.length) ? players[i + 1] : null;  // Handle odd number of winners
+
+            matches.push({
+                round_id: nextRound,
+                game_id: gameId,
+                player1_id: player1,
+                player2_id: player2,
+            });
+
+            // if (!player2) {
+            //     break;  // If there is an odd number of winners, player1 automatically advances
+            // }
+        }
+
+        // Insert the new matches for the next round into the database
+        const { error: matchInsertError } = await supabase
+            .from('matches')
+            .insert(matches);
+
+        if (matchInsertError) throw matchInsertError;
+
+        // Update game to move to the next round
+        const { error: gameUpdateError } = await supabase
+        .from('games')
+        .update({ current_round: nextRound })
+        .eq('id', gameId);
+    
+        if (gameUpdateError) throw gameUpdateError;
+
+        console.log(`Game ${gameId} advanced to round ${nextRound}`);
+        return null;  // Success
+    } catch (error) {
+        console.error('Error creating next round matches:', error);
+        throw error;
+    }
 }
 
 export async function updateWinner(matchId: number, winnerId: number) {

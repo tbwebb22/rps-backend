@@ -69,7 +69,6 @@ export type Database = {
       }
       matches: {
         Row: {
-          game_id: number
           id: number
           player1_id: number
           player1_move: number | null
@@ -79,7 +78,6 @@ export type Database = {
           winner_id: number | null
         }
         Insert: {
-          game_id: number
           id?: number
           player1_id: number
           player1_move?: number | null
@@ -89,7 +87,6 @@ export type Database = {
           winner_id?: number | null
         }
         Update: {
-          game_id?: number
           id?: number
           player1_id?: number
           player1_move?: number | null
