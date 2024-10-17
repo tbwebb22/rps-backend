@@ -2,10 +2,10 @@ import { supabase } from '../db/supabase';
 
 export async function startReadyGames() {
     const { data: gamesToStart, error: gamesToStartError } = await supabase
-    .from('games')
-    .select('*')
-    .lte('registration_end_date', new Date().toISOString())  // Registration has ended
-    .eq('current_round', 0);  // Game has not started yet
+        .from('games')
+        .select('*')
+        .lte('registration_end_date', new Date().toISOString())  // Registration has ended
+        .eq('current_round', 0);  // Game has not started yet
 
     if (gamesToStartError) {
         console.error("Error fetching games to start:", gamesToStartError);
@@ -180,18 +180,49 @@ export async function processRound(gameId: number, currentRound: number) {
 
 export async function getActiveGames() {
     const { data: activeGames, error: activeGamesError } = await supabase
-    .from('games')
-    .select('*')
-    .gt('current_round', 0)  // Game is in progress
-    .eq('completed', false);  // Only include games that are not completed
+        .from('games')
+        .select('*')
+        .gt('current_round', 0)  // Game is in progress
+        .eq('completed', false);  // Only include games that are not completed
 
     if (activeGamesError) throw activeGamesError;
 
     return activeGames;
 }
 
-export async function getMatchWinner(match: any) {
-    // Implementation
+export async function getMatchWinner(
+    match: {
+        id: number;
+        player1_id: number;
+        player1_move: number | null;
+        player2_id: number;
+        player2_move: number | null;
+        round_id: number;
+        winner_id: number | null;
+    }) {
+    let winnerId;
+
+    if (match.player2_move === null) {
+        winnerId = match.player1_id;
+    } else if (match.player1_move === null) {
+        winnerId = match.player2_id;
+    } else {
+        winnerId = determineWinner(match.player1_id, match.player2_id, match.player1_move, match.player2_move);
+    }
+
+    return winnerId;
+}
+
+function determineWinner(player1Id: number, player2Id: number, player1Move: number, player2Move: number) {
+    if (player1Move === player2Move) return player1Id;  // Player 1 wins ties
+
+    if ((player1Move === 0 && player2Move === 2) ||  // Rock beats Scissors
+        (player1Move === 1 && player2Move === 0) ||  // Paper beats Rock
+        (player1Move === 2 && player2Move === 1)) {  // Scissors beats Paper
+        return player1Id;
+    } else {
+        return player2Id;
+    }
 }
 
 export async function advanceRound(gameId: number, nextRound: number, players: any[]) {
@@ -227,10 +258,10 @@ export async function createRoundMatches(roundId: number) {
 
         // Update game to move to the next round
         const { error: gameUpdateError } = await supabase
-        .from('games')
-        .update({ current_round: nextRound })
-        .eq('id', gameId);
-    
+            .from('games')
+            .update({ current_round: nextRound })
+            .eq('id', gameId);
+
         if (gameUpdateError) throw gameUpdateError;
 
         console.log(`Game ${gameId} advanced to round ${nextRound}`);
