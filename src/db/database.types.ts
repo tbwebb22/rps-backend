@@ -42,6 +42,7 @@ export type Database = {
           id: number
           max_rounds: number
           registration_start_date: string
+          round_length_minutes: number
           sponsor_id: number | null
         }
         Insert: {
@@ -51,6 +52,7 @@ export type Database = {
           id?: number
           max_rounds: number
           registration_start_date: string
+          round_length_minutes: number
           sponsor_id?: number | null
         }
         Update: {
@@ -60,6 +62,7 @@ export type Database = {
           id?: number
           max_rounds?: number
           registration_start_date?: string
+          round_length_minutes?: number
           sponsor_id?: number | null
         }
         Relationships: []

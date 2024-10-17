@@ -52,7 +52,7 @@ export async function startGame(gameId: number) {
         // Fetch game details including max_rounds
         const { data: gameData, error: gameError } = await supabase
             .from('games')
-            .select('max_rounds')
+            .select('max_rounds, round_length_minutes')
             .eq('id', gameId)
             .single();
 
@@ -71,7 +71,7 @@ export async function startGame(gameId: number) {
         let endTime = new Date(currentDate);
 
         // Loop through each round and create round entries (with time)
-        for (let round = 1; round <= totalRounds; round++) {
+        for (let round = 1; round <= actualRounds; round++) {
             startTime.setDate(currentDate.getDate() + (round - 1));
             endTime.setDate(currentDate.getDate() + round);  // Each round lasts 1 day
 
