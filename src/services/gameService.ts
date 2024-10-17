@@ -41,13 +41,17 @@ export async function processActiveGames() {
 export async function startGame(gameId: number) {
     console.log("starting game ", gameId);
     try {
-        // Fetch registered players for the game
+        // Fetch registered players for the game, ordered by registration time
         const { data: players, error: playerError } = await supabase
             .from('user_registration')
-            .select('user_id')
-            .eq('game_id', gameId);
+            .select('user_id, registered_at')
+            .eq('game_id', gameId)
+            .order('registered_at', { ascending: true });
 
         if (playerError) throw playerError;
+
+        // Extract just the user_ids in the correct order
+        // const orderedPlayerIds = players.map(player => player.user_id);
 
         // Fetch game details including max_rounds
         const { data: gameData, error: gameError } = await supabase
@@ -62,6 +66,7 @@ export async function startGame(gameId: number) {
         const maxRounds = gameData.max_rounds;
         const roundLengthMinutes = gameData.round_length_minutes;
         const actualRounds = Math.min(Math.floor(Math.log2(registeredPlayersCount)), maxRounds);
+        const actualPlayers = 2 ** actualRounds;
         const gameStartTime = new Date(gameData.game_start_date);
 
         // Loop through each round and create round entries (with time)
@@ -83,30 +88,29 @@ export async function startGame(gameId: number) {
         }
 
         // create matches for the first round
-        const matches = [];
+        const firstRoundMatches = [];
+
+        const firstRoundMatchCount = actualPlayers / 2;
 
         // Create matches for the first round by pairing up players
-        for (let i = 0; i < players.length; i += 2) {
-            // TODO: this probably needs to be handled differently 
-            // for example: 5 players still requires 3 rounds
-            // only the first round should potentially have player2 be null
-            const player1 = players[i].user_id;
-            const player2 = (i + 1 < players.length) ? players[i + 1].user_id : null;  // Handle odd player
+        for (let i = 0; i < firstRoundMatchCount; i++) {
+            const player1 = players[i * 2].user_id;
+            const player2 = players[i * 2 + 1].user_id;
 
-            matches.push({
-                round_id: 1,  // First round
+            firstRoundMatches.push({
+                round_id: 1,
                 game_id: gameId,
                 player1_id: player1,
                 player2_id: player2
             });
         }
 
-        console.log('Matches to insert:', matches);
+        console.log('First round matches:', firstRoundMatches);
 
         // Insert matches for the first round into the database
         const { error: matchError } = await supabase
             .from('matches')
-            .insert(matches);
+            .insert(firstRoundMatches);
 
         if (matchError) {
             console.error('Error inserting matches:', matchError);
@@ -124,7 +128,6 @@ export async function startGame(gameId: number) {
         if (updateGameError) throw updateGameError;
 
         return null;  // Success
-
     } catch (error) {
         return error;
     }
