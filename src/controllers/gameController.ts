@@ -85,6 +85,7 @@ export const registerForGame = async (req: Request, res: Response) => {
             return res.status(400).send('Game is already full');
         }
 
+        // Insert user registration
         const { error: registrationError } = await supabase
             .from('user_registration')
             .insert([{ 

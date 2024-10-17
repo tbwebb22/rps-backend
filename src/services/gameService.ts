@@ -52,7 +52,7 @@ export async function startGame(gameId: number) {
         // Fetch game details including max_rounds
         const { data: gameData, error: gameError } = await supabase
             .from('games')
-            .select('max_rounds, round_length_minutes')
+            .select('max_rounds, round_length_minutes, game_start_date')
             .eq('id', gameId)
             .single();
 
@@ -60,20 +60,14 @@ export async function startGame(gameId: number) {
 
         const registeredPlayersCount = players.length;
         const maxRounds = gameData.max_rounds;
+        const roundLengthMinutes = gameData.round_length_minutes;
         const actualRounds = Math.min(Math.floor(Math.log2(registeredPlayersCount)), maxRounds);
-        console.log(`game ${gameId},
-             registeredPlayersCount: ${registeredPlayersCount}, 
-             maxRounds: ${maxRounds},
-             actualRounds: ${actualRounds}`);
-
-        const currentDate = new Date();
-        let startTime = new Date(currentDate);
-        let endTime = new Date(currentDate);
+        const gameStartTime = new Date(gameData.game_start_date);
 
         // Loop through each round and create round entries (with time)
         for (let round = 1; round <= actualRounds; round++) {
-            startTime.setDate(currentDate.getDate() + (round - 1));
-            endTime.setDate(currentDate.getDate() + round);  // Each round lasts 1 day
+            const startTime = new Date(gameStartTime.getTime() + (round - 1) * roundLengthMinutes * 60000);
+            const endTime = new Date(gameStartTime.getTime() + round * roundLengthMinutes * 60000);
 
             // Insert the round entry into the 'rounds' table
             const { error: roundError } = await supabase
@@ -130,6 +124,7 @@ export async function startGame(gameId: number) {
         if (updateGameError) throw updateGameError;
 
         return null;  // Success
+
     } catch (error) {
         return error;
     }
