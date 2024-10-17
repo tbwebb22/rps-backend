@@ -15,25 +15,6 @@ export async function startReadyGames() {
     await Promise.all(gamesToStart.map(game => startGame(game.id)));
 }
 
-export async function processActiveGames() {
-    const activeGames = await getActiveGames();
-
-    for (const game of activeGames) {
-        // Fetch the current round details, including the end time
-        const { data: roundData, error: roundError } = await supabase
-            .from('rounds')
-            .select('end_time')
-            .eq('game_id', game.id)
-            .eq('round_number', game.current_round)
-            .single();
-
-        if (roundError) throw roundError;
-
-        const currentTime = new Date().toISOString();
-        if (currentTime > roundData.end_time) await processRound(game.id, game.current_round);
-    }
-}
-
 export async function startGame(gameId: number) {
     console.log("starting game ", gameId);
     try {
@@ -45,9 +26,6 @@ export async function startGame(gameId: number) {
             .order('registered_at', { ascending: true });
 
         if (playerError) throw playerError;
-
-        // Extract just the user_ids in the correct order
-        // const orderedPlayerIds = players.map(player => player.user_id);
 
         // Fetch game details including max_rounds
         const { data: gameData, error: gameError } = await supabase
@@ -128,6 +106,27 @@ export async function startGame(gameId: number) {
         return error;
     }
 }
+
+export async function processActiveGames() {
+    const activeGames = await getActiveGames();
+
+    for (const game of activeGames) {
+        // Fetch the current round details, including the end time
+        const { data: roundData, error: roundError } = await supabase
+            .from('rounds')
+            .select('end_time')
+            .eq('game_id', game.id)
+            .eq('round_number', game.current_round)
+            .single();
+
+        if (roundError) throw roundError;
+
+        const currentTime = new Date().toISOString();
+        if (currentTime > roundData.end_time) await processRound(game.id, game.current_round);
+    }
+}
+
+
 
 export async function processRound(gameId: number, currentRound: number) {
     console.log(`Processing round ${currentRound} for game ${gameId}`);
