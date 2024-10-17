@@ -200,53 +200,37 @@ export async function getMatchWinner(
         round_id: number;
         winner_id: number | null;
     }) {
-    let winnerId;
 
     if (match.player2_move === null) {
-        winnerId = match.player1_id;
+        return match.player1_id;
     } else if (match.player1_move === null) {
-        winnerId = match.player2_id;
+        return match.player2_id;
     } else {
-        winnerId = determineWinner(match.player1_id, match.player2_id, match.player1_move, match.player2_move);
-    }
+        if (match.player1_move === match.player2_move) return match.player1_id;  // Player 1 wins ties
 
-    return winnerId;
-}
+        if ((match.player1_move === 0 && match.player2_move === 2) ||  // Rock beats Scissors
+        (match.player1_move === 1 && match.player2_move === 0) ||  // Paper beats Rock
+        (match.player1_move === 2 && match.player2_move === 1)) {  // Scissors beats Paper
+            return match.player1_id;
+        }
 
-function determineWinner(player1Id: number, player2Id: number, player1Move: number, player2Move: number) {
-    if (player1Move === player2Move) return player1Id;  // Player 1 wins ties
-
-    if ((player1Move === 0 && player2Move === 2) ||  // Rock beats Scissors
-        (player1Move === 1 && player2Move === 0) ||  // Paper beats Rock
-        (player1Move === 2 && player2Move === 1)) {  // Scissors beats Paper
-        return player1Id;
-    } else {
-        return player2Id;
+        return match.player2_id;
     }
 }
 
-export async function advanceRound(gameId: number, nextRound: number, players: any[]) {
-    // Implementation
-}
-
-export async function createRoundMatches(roundId: number) {
+export async function createRoundMatches(roundId: number, playerIds: number[]) {
     try {
         const matches = [];
         // Create matches for the next round
-        for (let i = 0; i < players.length; i += 2) {
-            const player1 = players[i];
-            const player2 = (i + 1 < players.length) ? players[i + 1] : null;  // Handle odd number of winners
+        for (let i = 0; i < playerIds.length; i += 2) {
+            const player1 = playerIds[i];
+            const player2 = playerIds[i + 1];
 
             matches.push({
-                round_id: nextRound,
-                game_id: gameId,
+                round_id: roundId,
                 player1_id: player1,
                 player2_id: player2,
             });
-
-            // if (!player2) {
-            //     break;  // If there is an odd number of winners, player1 automatically advances
-            // }
         }
 
         // Insert the new matches for the next round into the database
@@ -256,15 +240,14 @@ export async function createRoundMatches(roundId: number) {
 
         if (matchInsertError) throw matchInsertError;
 
-        // Update game to move to the next round
-        const { error: gameUpdateError } = await supabase
-            .from('games')
-            .update({ current_round: nextRound })
-            .eq('id', gameId);
+        // Move this outside of this function
+        // const { error: gameUpdateError } = await supabase
+        //     .from('games')
+        //     .update({ current_round: nextRound })
+        //     .eq('id', gameId);
 
-        if (gameUpdateError) throw gameUpdateError;
+        // if (gameUpdateError) throw gameUpdateError;
 
-        console.log(`Game ${gameId} advanced to round ${nextRound}`);
         return null;  // Success
     } catch (error) {
         console.error('Error creating next round matches:', error);
@@ -272,8 +255,12 @@ export async function createRoundMatches(roundId: number) {
     }
 }
 
-export async function updateWinner(matchId: number, winnerId: number) {
-    // Implementation
-}
+async function updateWinner(matchId: number, winnerId: number) {
+    console.log(`updating winner for match ${matchId} with winnerId ${winnerId}`)
+    const { error } = await supabase
+        .from('matches')
+        .update({ winner_id: winnerId })
+        .eq('id', matchId);
 
-// Implement other helper functions like getRandomMove, updatePlayerMove, determineWinner, etc.
+    if (error) throw error;
+}
