@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../db/supabase';
-import { startReadyGames, processActiveGames, startGame, processRound, getActiveGames, getMatchWinner, advanceRound, updateWinner } from '../services/gameService';
+import { startReadyGames, processActiveGames, startGame, processRound, getActiveGames, getMatchWinner } from '../services/gameService';
 
 export const createGame = async (req: Request, res: Response) => {
     const { registration_start_date, game_start_date, max_rounds, sponsor_id, round_length_minutes } = req.body;

@@ -168,6 +168,14 @@ export async function processRound(gameId: number, currentRound: number) {
             }
 
             await createRoundMatches(nextRoundData.id, winners);
+
+            // Update game to the next round
+            const { error: gameUpdateError } = await supabase
+                .from('games')
+                .update({ current_round: nextRound })
+                .eq('id', gameId);
+
+            if (gameUpdateError) throw gameUpdateError;
         } else {
             console.log(`completing game ${gameId}`);
             // Mark the game as completed in the database
@@ -250,14 +258,6 @@ export async function createRoundMatches(roundId: number, playerIds: number[]) {
             .insert(matches);
 
         if (matchInsertError) throw matchInsertError;
-
-        // Move this outside of this function
-        // const { error: gameUpdateError } = await supabase
-        //     .from('games')
-        //     .update({ current_round: nextRound })
-        //     .eq('id', gameId);
-
-        // if (gameUpdateError) throw gameUpdateError;
 
         return null;  // Success
     } catch (error) {
