@@ -151,14 +151,25 @@ export async function processRound(gameId: number, currentRound: number) {
         }
 
         // create next set of matches if necessary
-        if (matches.length > 1) {
-            // Create next round with winners
+        if (winners.length > 1) {
+            // Get the roundId for the next round
             const nextRound = currentRound + 1;
-            console.log("winners: ", winners);
-            await advanceRound(gameId, nextRound, winners);
+            const { data: nextRoundData, error: nextRoundError } = await supabase
+                .from('rounds')
+                .select('id')
+                .eq('game_id', gameId)
+                .eq('round_number', nextRound)
+                .single();
 
+            if (nextRoundError) throw nextRoundError;
+
+            if (!nextRoundData) {
+                throw new Error(`No round data found for game ${gameId}, round ${nextRound}`);
+            }
+
+            await createRoundMatches(nextRoundData.id, winners);
         } else {
-            console.log("completing");
+            console.log(`completing game ${gameId}`);
             // Mark the game as completed in the database
             const { error: updateGameError } = await supabase
                 .from('games')
