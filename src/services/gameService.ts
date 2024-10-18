@@ -126,8 +126,6 @@ export async function processActiveGames() {
     }
 }
 
-
-
 export async function processRound(gameId: number, currentRound: number) {
     console.log(`Processing round ${currentRound} for game ${gameId}`);
     try {
@@ -211,29 +209,36 @@ export async function getActiveGames() {
 export async function getMatchWinner(
     match: {
         id: number;
-        player1_id: number;
+        player1_id: number | null;
         player1_move: number | null;
-        player2_id: number;
+        player2_id: number | null;
         player2_move: number | null;
         round_id: number;
         winner_id: number | null;
     }) {
+        let winnerId;
 
-    if (match.player2_move === null) {
-        return match.player1_id;
-    } else if (match.player1_move === null) {
-        return match.player2_id;
+    if (match.player2_move === null || match.player2_id === null) {
+        winnerId = match.player1_id;
+    } else if (match.player1_move === null || match.player1_id === null) {
+        winnerId = match.player2_id;
     } else {
-        if (match.player1_move === match.player2_move) return match.player1_id;  // Player 1 wins ties
-
-        if ((match.player1_move === 0 && match.player2_move === 2) ||  // Rock beats Scissors
+        if (match.player1_move === match.player2_move) {
+            winnerId = match.player1_id;  // Player 1 wins ties
+        } else if ((match.player1_move === 0 && match.player2_move === 2) ||  // Rock beats Scissors
         (match.player1_move === 1 && match.player2_move === 0) ||  // Paper beats Rock
         (match.player1_move === 2 && match.player2_move === 1)) {  // Scissors beats Paper
-            return match.player1_id;
+            winnerId =  match.player1_id;
+        } else {
+            winnerId = match.player2_id;
         }
-
-        return match.player2_id;
     }
+
+    if (!winnerId) {
+        throw new Error(`Invalid match ${match.id}`);
+    }
+
+    return winnerId;
 }
 
 export async function createRoundMatches(roundId: number, playerIds: number[]) {
