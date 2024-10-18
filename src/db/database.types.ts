@@ -72,7 +72,7 @@ export type Database = {
           id: number
           player1_id: number
           player1_move: number | null
-          player2_id: number
+          player2_id: number | null
           player2_move: number | null
           round_id: number
           winner_id: number | null
@@ -81,7 +81,7 @@ export type Database = {
           id?: number
           player1_id: number
           player1_move?: number | null
-          player2_id: number
+          player2_id?: number | null
           player2_move?: number | null
           round_id: number
           winner_id?: number | null
@@ -90,7 +90,7 @@ export type Database = {
           id?: number
           player1_id?: number
           player1_move?: number | null
-          player2_id?: number
+          player2_id?: number | null
           player2_move?: number | null
           round_id?: number
           winner_id?: number | null
@@ -152,7 +152,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
-          id?: number
+          id: number
         }
         Update: {
           created_at?: string

@@ -39,8 +39,8 @@ export async function startGame(gameId: number) {
         const registeredPlayersCount = players.length;
         const maxRounds = gameData.max_rounds;
         const roundLengthMinutes = gameData.round_length_minutes;
-        const actualRounds = Math.min(Math.floor(Math.log2(registeredPlayersCount)), maxRounds);
-        const actualPlayers = 2 ** actualRounds;
+        const actualRounds = Math.min(Math.ceil(Math.log2(registeredPlayersCount)), maxRounds);
+        const actualPlayers = Math.min(2 ** actualRounds, registeredPlayersCount);
         const gameStartTime = new Date(gameData.game_start_date);
 
         // Loop through each round and create round entries (with time)
@@ -62,21 +62,34 @@ export async function startGame(gameId: number) {
         }
 
         // create matches for the first round
-        const firstRoundMatches = [];
+        const firstRoundMatches: {
+            round_id: number;
+            game_id: number;
+            player1_id: number;
+            player2_id: number | null;
+        }[] = [];
 
         const firstRoundMatchCount = actualPlayers / 2;
 
-        // Create matches for the first round by pairing up players
+        // Create matches and add only the first player
         for (let i = 0; i < firstRoundMatchCount; i++) {
-            const player1 = players[i * 2].user_id;
-            const player2 = players[i * 2 + 1].user_id;
+            const player1 = players[i].user_id;
 
             firstRoundMatches.push({
                 round_id: 1,
                 game_id: gameId,
                 player1_id: player1,
-                player2_id: player2
+                player2_id: null
             });
+        }
+
+        // Add the second player to the matches, some matches may have null as player2_id
+        for (let i = 0; i < firstRoundMatchCount; i++) {
+            if (i + firstRoundMatchCount < players.length) {
+                firstRoundMatches[i].player2_id = players[i + firstRoundMatchCount].user_id;
+            } else {
+                firstRoundMatches[i].player2_id = null;
+            }
         }
 
         console.log('First round matches:', firstRoundMatches);
