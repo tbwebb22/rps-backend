@@ -38,12 +38,24 @@ export const registerForGame = async (req: Request, res: Response) => {
         // Fetch game details including max_rounds
         const { data: gameData, error: gameError } = await supabase
             .from('games')
-            .select('max_rounds')
+            .select('max_rounds, registration_start_date, game_start_date')
             .eq('id', gameId)
             .single();
 
         if (gameError) {
-            return res.status(404).send('Game not found');
+            return res.status(404).json({ message: 'Game not found' });
+        }
+
+        const currentTime = new Date();
+        const registrationStartDate = new Date(gameData.registration_start_date);
+        const gameStartDate = new Date(gameData.game_start_date);
+
+        if (currentTime < registrationStartDate) {
+            return res.status(400).json({ message: 'Registration has not started yet' });
+        }
+
+        if (currentTime >= gameStartDate) {
+            return res.status(400).json({ message: 'Registration period has ended' });
         }
 
         const maxRounds = gameData.max_rounds;
@@ -55,12 +67,14 @@ export const registerForGame = async (req: Request, res: Response) => {
             .eq('id', fid)
             .single();
 
-        // add user to db if not exists
+        // add user to db if they don't exist
         if (!userData) {
+            console.log('id: ', fid);
+            console.log('createdAt: ', new Date().toISOString());
             const { data: newUser, error: createUserError } = await supabase
                 .from('users')
                 .insert({ 
-                    fid,
+                    id: fid,
                     created_at: new Date().toISOString()
                 })
                 .select()
