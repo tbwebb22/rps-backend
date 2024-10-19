@@ -37,7 +37,7 @@ export type Database = {
       games: {
         Row: {
           completed: boolean
-          current_round: number
+          current_round_id: number | null
           game_start_date: string
           id: number
           max_rounds: number
@@ -47,7 +47,7 @@ export type Database = {
         }
         Insert: {
           completed?: boolean
-          current_round: number
+          current_round_id?: number | null
           game_start_date: string
           id?: number
           max_rounds: number
@@ -57,7 +57,7 @@ export type Database = {
         }
         Update: {
           completed?: boolean
-          current_round?: number
+          current_round_id?: number | null
           game_start_date?: string
           id?: number
           max_rounds?: number

@@ -11,7 +11,7 @@ export const createGame = async (req: Request, res: Response) => {
             .insert([{ 
                 registration_start_date, 
                 game_start_date, 
-                current_round: 0,
+                current_round_id: null,
                 completed: false,
                 max_rounds,
                 sponsor_id,
@@ -69,8 +69,6 @@ export const registerForGame = async (req: Request, res: Response) => {
 
         // add user to db if they don't exist
         if (!userData) {
-            console.log('id: ', fid);
-            console.log('createdAt: ', new Date().toISOString());
             const { data: newUser, error: createUserError } = await supabase
                 .from('users')
                 .insert({ 
@@ -128,26 +126,37 @@ export const makePlay = async (req: Request, res: Response) => {
     }
 
     try {
-        // Fetch match data including round start and end times
+        console.log("matchId: ", matchId);
+        // Fetch match data
         const { data: matchData, error: matchError } = await supabase
             .from('matches')
-            .select(`
-                id, player1_id, player2_id, player1_move, player2_move,
-                games!inner(id, current_round),
-                rounds!inner(round_number, start_time, end_time)
-            `)
+            .select('id, player1_id, player2_id, player1_move, player2_move, round_id')
             .eq('id', matchId)
-            .eq('rounds.round_number', 'games.current_round')
             .single();
 
         if (matchError || !matchData) {
             return res.status(404).send('Match not found');
         }
 
+        console.log("matchData: ", matchData);
+
+        // Fetch associated round data
+        const { data: roundData, error: roundError } = await supabase
+            .from('rounds')
+            .select('id, start_time, end_time')
+            .eq('id', matchData.round_id)
+            .single();
+
+        if (roundError) {
+            return res.status(500).send('Error fetching round data');
+        }
+
+        console.log("roundData: ", roundData);
+        
         // Check if the current time is within the round's start and end times
         const currentTime = new Date();
-        const roundStartTime = new Date(matchData.rounds[0].start_time);
-        const roundEndTime = new Date(matchData.rounds[0].end_time);
+        const roundStartTime = new Date(roundData.start_time);
+        const roundEndTime = new Date(roundData.end_time);
 
         if (currentTime < roundStartTime || currentTime > roundEndTime) {
             return res.status(400).send('Move not allowed outside of round time');

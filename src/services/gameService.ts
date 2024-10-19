@@ -4,8 +4,8 @@ export async function startReadyGames() {
     const { data: gamesToStart, error: gamesToStartError } = await supabase
         .from('games')
         .select('*')
-        .lte('registration_end_date', new Date().toISOString())  // Registration has ended
-        .eq('current_round', 0);  // Game has not started yet
+        .lte('game_start_date', new Date().toISOString())  // Registration has ended
+        .is('current_round_id', null);  // Game has not started yet
 
     if (gamesToStartError) {
         console.error("Error fetching games to start:", gamesToStartError);
@@ -42,6 +42,7 @@ export async function startGame(gameId: number) {
         const actualRounds = Math.min(Math.ceil(Math.log2(registeredPlayersCount)), maxRounds);
         const actualPlayers = Math.min(2 ** actualRounds, registeredPlayersCount);
         const gameStartTime = new Date(gameData.game_start_date);
+        let roundOneId;
 
         // Loop through each round and create round entries (with time)
         for (let round = 1; round <= actualRounds; round++) {
@@ -49,39 +50,48 @@ export async function startGame(gameId: number) {
             const endTime = new Date(gameStartTime.getTime() + round * roundLengthMinutes * 60000);
 
             // Insert the round entry into the 'rounds' table
-            const { error: roundError } = await supabase
+            const { data: insertedRound, error: roundError } = await supabase
                 .from('rounds')
                 .insert({
                     game_id: gameId,
                     round_number: round,
                     start_time: startTime.toISOString(),
                     end_time: endTime.toISOString()
-                });
+                })
+                .select('id')
+                .single();
 
             if (roundError) throw roundError;
+
+            if (round === 1) {
+                roundOneId = insertedRound.id;
+                console.log("roundOneId: ", roundOneId);
+            }
         }
+
+        if (roundOneId === undefined) throw new Error("roundOneId not found");
 
         // create matches for the first round
         const firstRoundMatches: {
-            round_id: number;
-            game_id: number;
-            player1_id: number;
-            player2_id: number | null;
-        }[] = [];
+                round_id: number;
+                player1_id: number;
+                player2_id: number | null;
+            }[] = [];
 
-        const firstRoundMatchCount = actualPlayers / 2;
+        const firstRoundMatchCount = 2 ** (actualRounds - 1);
 
         // Create matches and add only the first player
         for (let i = 0; i < firstRoundMatchCount; i++) {
             const player1 = players[i].user_id;
 
             firstRoundMatches.push({
-                round_id: 1,
-                game_id: gameId,
+                round_id: roundOneId,
                 player1_id: player1,
                 player2_id: null
             });
         }
+
+        console.log('First round matches:', firstRoundMatches);
 
         // Add the second player to the matches, some matches may have null as player2_id
         for (let i = 0; i < firstRoundMatchCount; i++) {
@@ -109,7 +119,7 @@ export async function startGame(gameId: number) {
         // Update the game to set current_round to 1
         const { error: updateGameError } = await supabase
             .from('games')
-            .update({ current_round: 1 })
+            .update({ current_round_id: roundOneId })
             .eq('id', gameId);
 
         if (updateGameError) throw updateGameError;
@@ -123,31 +133,64 @@ export async function startGame(gameId: number) {
 export async function processActiveGames() {
     const activeGames = await getActiveGames();
 
+    console.log("activeGames: ", activeGames);
+
     for (const game of activeGames) {
+        if (!game.current_round_id) {
+            throw new Error(`Game ${game.id} has no current round`);
+        }
+
         // Fetch the current round details, including the end time
         const { data: roundData, error: roundError } = await supabase
             .from('rounds')
             .select('end_time')
-            .eq('game_id', game.id)
-            .eq('round_number', game.current_round)
+            .eq('id', game.current_round_id)
             .single();
 
         if (roundError) throw roundError;
 
+        console.log("roundData: ", roundData);
+
         const currentTime = new Date().toISOString();
-        if (currentTime > roundData.end_time) await processRound(game.id, game.current_round);
+        console.log("currentTime: ", currentTime);
+        console.log("roundData.end_time: ", roundData.end_time);
+        if (currentTime > roundData.end_time) await processRound(game.current_round_id);
     }
 }
 
-export async function processRound(gameId: number, currentRound: number) {
-    console.log(`Processing round ${currentRound} for game ${gameId}`);
+export async function processRound(roundId: number) {
     try {
+        console.log("processing round: ", roundId);
+        // Fetch round data
+        const { data: roundData, error: roundError } = await supabase
+            .from('rounds')
+            .select('*')
+            .eq('id', roundId)
+            .single();
+
+        if (roundError || !roundData) {
+            throw new Error(`No round data found for round ${roundId}`);
+        }
+
+        // Fetch associated game data
+        const { data: gameData, error: gameError } = await supabase
+            .from('games')
+            .select('*')
+            .eq('id', roundData.game_id)
+            .single();
+
+        if (gameError) {
+            throw new Error(`Error fetching game data for round ${roundId}`);
+        }
+
+        console.log("roundData: ", roundData);
+        console.log("gameData: ", gameData);
+
         // Fetch matches for the current round
         const { data: matches, error: matchError } = await supabase
             .from('matches')
             .select('*')
-            .eq('game_id', gameId)
-            .eq('round_id', currentRound);
+            .eq('round_id', roundId);
 
         if (matchError) throw matchError;
 
@@ -163,18 +206,18 @@ export async function processRound(gameId: number, currentRound: number) {
         // create next set of matches if necessary
         if (winners.length > 1) {
             // Get the roundId for the next round
-            const nextRound = currentRound + 1;
+            const nextRoundNumber = roundData.round_number + 1;
             const { data: nextRoundData, error: nextRoundError } = await supabase
                 .from('rounds')
                 .select('id')
-                .eq('game_id', gameId)
-                .eq('round_number', nextRound)
+                .eq('game_id', roundData.game_id)
+                .eq('round_number', nextRoundNumber)
                 .single();
 
             if (nextRoundError) throw nextRoundError;
 
             if (!nextRoundData) {
-                throw new Error(`No round data found for game ${gameId}, round ${nextRound}`);
+                throw new Error(`No round data found for game ${roundData.game_id}, round ${nextRoundNumber}`);
             }
 
             await createRoundMatches(nextRoundData.id, winners);
@@ -182,23 +225,23 @@ export async function processRound(gameId: number, currentRound: number) {
             // Update game to the next round
             const { error: gameUpdateError } = await supabase
                 .from('games')
-                .update({ current_round: nextRound })
-                .eq('id', gameId);
+                .update({ current_round_id: nextRoundData.id })
+                .eq('id', roundData.game_id);
 
             if (gameUpdateError) throw gameUpdateError;
         } else {
-            console.log(`completing game ${gameId}`);
+            console.log(`completing game ${roundData.game_id}`);
             // Mark the game as completed in the database
             const { error: updateGameError } = await supabase
                 .from('games')
                 .update({ completed: true })
-                .eq('id', gameId);
+                .eq('id', roundData.game_id);
 
             if (updateGameError) {
                 throw updateGameError;
             }
 
-            console.log(`Game ${gameId} completed. Winner: ${winners[0]}`);
+            console.log(`Game ${roundData.game_id} completed. Winner: ${winners[0]}`);
         }
 
         return null;  // Success
@@ -211,7 +254,7 @@ export async function getActiveGames() {
     const { data: activeGames, error: activeGamesError } = await supabase
         .from('games')
         .select('*')
-        .gt('current_round', 0)  // Game is in progress
+        .not('current_round_id', 'is', null)  // Game is in progress
         .eq('completed', false);  // Only include games that are not completed
 
     if (activeGamesError) throw activeGamesError;
