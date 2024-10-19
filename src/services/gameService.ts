@@ -91,8 +91,6 @@ export async function startGame(gameId: number) {
             });
         }
 
-        console.log('First round matches:', firstRoundMatches);
-
         // Add the second player to the matches, some matches may have null as player2_id
         for (let i = 0; i < firstRoundMatchCount; i++) {
             if (i + firstRoundMatchCount < players.length) {
