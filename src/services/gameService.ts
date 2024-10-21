@@ -352,7 +352,7 @@ export async function getGameStatus(gameId: string, userId: string) {
         .single();
 
     console.log('Game data:', game);
-    console.log('Game error:', gameError);
+    // console.log('Game error:', gameError);
 
     if (gameError) {
         console.error('Error fetching game:', gameError);
@@ -363,35 +363,59 @@ export async function getGameStatus(gameId: string, userId: string) {
         throw new Error(`No game data returned for id ${gameId}`);
     }
 
-    if (game.current_round_id === null) {
-        throw new Error(`Game ${gameId} has no current round`);
+    let currentRound;
+    let lastRound;
+
+    console.log('a');
+    
+    const { data: userMatches, error: matchError } = await supabase
+    .from('matches')
+    .select(`
+        *,
+        rounds!inner(
+            game_id,
+            round_number
+        )
+    `)
+    .eq('rounds.game_id', gameId)
+    .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
+    .order('id', { ascending: true });
+
+    console.log('b');
+
+    if (matchError) {
+        console.error('Error fetching matches:', matchError);
+        throw new Error(`Failed to fetch matches: ${matchError.message || 'Unknown error'}`);
     }
 
+    console.log('c');
 
+    const cleanedUserMatches = userMatches.map((match) => ({
+        id: match.id,
+        roundId: match.round_id,
+        opponentId: match.player1_id === Number(userId) ? match.player2_id : match.player1_id,
+        opponentMove: match.round_id === game.current_round_id 
+            ? null 
+            : (match.player1_id === Number(userId) ? match.player2_move : match.player1_move),
+        winnerId: match.winner_id,
+    }));
 
-    // Define the type for the game object
-    interface Round {
-        id: number;
-        round_number: number;
-        start_time: string;
-        end_time: string;
-    }
+    console.log('User matches:', cleanedUserMatches);
 
-    interface Game {
-        id: number;
-        current_round_id: number | null;
-        completed: boolean;
-        rounds: Round[];
-        // Add other game properties as needed
-    }
+    const combinedGameData = {
+        id: game.id,
+        current_round_id: game.current_round_id,
+        completed: game.completed,
+        rounds: game.rounds.map(round => ({
+            id: round.id,
+            round_number: round.round_number,
+            start_time: round.start_time,
+            end_time: round.end_time,
+            match: cleanedUserMatches.find(match => match.roundId === round.id) || null
+        }))
+    };
 
-    const typedGame = game as Game;
-
-    // Now you can safely access game properties
-    const currentRound = typedGame.rounds.find(round => round.id === typedGame.current_round_id);
-    const previousRounds = typedGame.rounds.filter(round => round.round_number < (currentRound?.round_number || Infinity));
-
-    // ... rest of your logic here ...
+    console.log('Combined game data:', JSON.stringify(combinedGameData, null, 2));
 
     return {
         game: {
@@ -400,16 +424,5 @@ export async function getGameStatus(gameId: string, userId: string) {
             // currentRound: game.current_round_id,
         }
     };
-    // return {
-    //     gameStarted: game.current_round_id !== null,
-    //     activeRound: activeRound ? {
-    //         id: activeRound.id,
-    //         startTime: activeRound.start_time,
-    //         endTime: activeRound.end_time
-    //     } : null,
-    //     needsToPlay: activeMatch ? (
-    //         (activeMatch.player1_id === userId && !activeMatch.player1_move) ||
-    //         (activeMatch.player2_id === userId && !activeMatch.player2_move)
-    //     ) : false
-    // };
 }
+
