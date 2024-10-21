@@ -351,9 +351,6 @@ export async function getGameStatus(gameId: string, userId: string) {
         .eq('id', gameId)
         .single();
 
-    console.log('Game data:', game);
-    // console.log('Game error:', gameError);
-
     if (gameError) {
         console.error('Error fetching game:', gameError);
         throw new Error(`Failed to fetch game: ${gameError.message || 'Unknown error'}`);
@@ -362,12 +359,8 @@ export async function getGameStatus(gameId: string, userId: string) {
     if (!game) {
         throw new Error(`No game data returned for id ${gameId}`);
     }
-
-    let currentRound;
-    let lastRound;
-
-    console.log('a');
     
+    // get all the matches for this game that this user is in
     const { data: userMatches, error: matchError } = await supabase
     .from('matches')
     .select(`
@@ -381,48 +374,36 @@ export async function getGameStatus(gameId: string, userId: string) {
     .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
     .order('id', { ascending: true });
 
-    console.log('b');
-
     if (matchError) {
         console.error('Error fetching matches:', matchError);
         throw new Error(`Failed to fetch matches: ${matchError.message || 'Unknown error'}`);
     }
 
-    console.log('c');
-
-    const cleanedUserMatches = userMatches.map((match) => ({
-        id: match.id,
-        roundId: match.round_id,
-        opponentId: match.player1_id === Number(userId) ? match.player2_id : match.player1_id,
-        opponentMove: match.round_id === game.current_round_id 
-            ? null 
-            : (match.player1_id === Number(userId) ? match.player2_move : match.player1_move),
-        winnerId: match.winner_id,
-    }));
-
-    console.log('User matches:', cleanedUserMatches);
-
     const combinedGameData = {
-        id: game.id,
-        current_round_id: game.current_round_id,
+        gameId: game.id,
+        currentRoundId: game.current_round_id,
         completed: game.completed,
-        rounds: game.rounds.map(round => ({
-            id: round.id,
-            round_number: round.round_number,
-            start_time: round.start_time,
-            end_time: round.end_time,
-            match: cleanedUserMatches.find(match => match.roundId === round.id) || null
-        }))
+        rounds: game.rounds.map(round => {
+            const match = userMatches.find(m => m.round_id === round.id);
+            return {
+                id: round.id,
+                round_number: round.round_number,
+                start_time: round.start_time,
+                end_time: round.end_time,
+                match: match ? {
+                    id: match.id,
+                    opponentId: match.player1_id === Number(userId) ? match.player2_id : match.player1_id,
+                    opponentMove: match.round_id === game.current_round_id 
+                        ? null 
+                        : (match.player1_id === Number(userId) ? match.player2_move : match.player1_move),
+                    playerMove: match.player1_id === Number(userId) ? match.player1_move : match.player2_move,
+                    playerWon: match.winner_id === Number(userId),
+                } : null
+            };
+        })
     };
 
-    console.log('Combined game data:', JSON.stringify(combinedGameData, null, 2));
+    // console.log('Combined game data:', JSON.stringify(combinedGameData, null, 2));
 
-    return {
-        game: {
-            // registrationOpen,
-            // completed: game.completed,
-            // currentRound: game.current_round_id,
-        }
-    };
+    return combinedGameData;
 }
-
