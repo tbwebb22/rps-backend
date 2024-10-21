@@ -333,3 +333,83 @@ async function updateWinner(matchId: number, winnerId: number) {
 
     if (error) throw error;
 }
+
+export async function getGameStatus(gameId: string, userId: string) {
+    console.log(`getting game status for game ${gameId} and user ${userId}`);
+
+    const { data: game, error: gameError } = await supabase
+        .from('games')
+        .select(`
+            *,
+            rounds:rounds!rounds_game_id_fkey(
+                id,
+                round_number,
+                start_time,
+                end_time
+            )
+        `)
+        .eq('id', gameId)
+        .single();
+
+    console.log('Game data:', game);
+    console.log('Game error:', gameError);
+
+    if (gameError) {
+        console.error('Error fetching game:', gameError);
+        throw new Error(`Failed to fetch game: ${gameError.message || 'Unknown error'}`);
+    }
+
+    if (!game) {
+        throw new Error(`No game data returned for id ${gameId}`);
+    }
+
+    if (game.current_round_id === null) {
+        throw new Error(`Game ${gameId} has no current round`);
+    }
+
+
+
+    // Define the type for the game object
+    interface Round {
+        id: number;
+        round_number: number;
+        start_time: string;
+        end_time: string;
+    }
+
+    interface Game {
+        id: number;
+        current_round_id: number | null;
+        completed: boolean;
+        rounds: Round[];
+        // Add other game properties as needed
+    }
+
+    const typedGame = game as Game;
+
+    // Now you can safely access game properties
+    const currentRound = typedGame.rounds.find(round => round.id === typedGame.current_round_id);
+    const previousRounds = typedGame.rounds.filter(round => round.round_number < (currentRound?.round_number || Infinity));
+
+    // ... rest of your logic here ...
+
+    return {
+        game: {
+            // registrationOpen,
+            // completed: game.completed,
+            // currentRound: game.current_round_id,
+        }
+    };
+    // return {
+    //     gameStarted: game.current_round_id !== null,
+    //     activeRound: activeRound ? {
+    //         id: activeRound.id,
+    //         startTime: activeRound.start_time,
+    //         endTime: activeRound.end_time
+    //     } : null,
+    //     needsToPlay: activeMatch ? (
+    //         (activeMatch.player1_id === userId && !activeMatch.player1_move) ||
+    //         (activeMatch.player2_id === userId && !activeMatch.player2_move)
+    //     ) : false
+    // };
+}
