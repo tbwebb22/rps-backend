@@ -88,6 +88,22 @@ export const registerForGame = async (req: Request, res: Response) => {
             }
         }
 
+        // Check if user is already registered for this game
+        const { data: existingRegistration, error: checkError } = await supabase
+            .from('user_registration')
+            .select()
+            .eq('game_id', gameId)
+            .eq('user_id', fid)
+            .single();
+
+        if (checkError && checkError.code !== 'PGRST116') {
+            return res.status(500).send('Error checking existing registration');
+        }
+
+        if (existingRegistration) {
+            return res.status(400).send('User already registered for this game');
+        }
+
         // Check if the game is already full
         const { count, error: countError } = await supabase
             .from('user_registration')

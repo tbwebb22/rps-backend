@@ -412,11 +412,6 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
         return game.rounds.find((round: any) => round.id === game.current_round_id)?.round_number;
     };
 
-    const getGameWinner = (game: any) => {
-        if (game.completed) return game.rounds[game.rounds.length - 1].winner_id;
-        return null;
-    };
-
     const combinedGameData: GameData = {
         gameId: game.id,
         currentRoundId: game.current_round_id,
@@ -444,7 +439,8 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
                     playerWon: match.winner_id === Number(userId),
                 } : null
             };
-        })
+        }),
+        winnerId: game.winner_id
     };
 
     console.log('Combined game data:', JSON.stringify(combinedGameData, null, 2));
