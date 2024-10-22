@@ -334,7 +334,33 @@ async function updateWinner(matchId: number, winnerId: number) {
     if (error) throw error;
 }
 
-export async function getGameStatus(gameId: string, userId: string) {
+interface Match {
+    id: number;
+    opponentId: number | null;
+    opponentMove: number | null;
+    playerMove: number | null;
+    playerWon: boolean;
+}
+
+interface Round {
+    id: number;
+    round_number: number;
+    start_time: string;
+    end_time: string;
+    match: Match | null;
+}
+
+interface GameData {
+    gameId: number;
+    currentRoundId: number | null;
+    gameState: 0 | 1 | 2 | 3;
+    registrationStart: string;
+    gameStart: string;
+    rounds: Round[];
+}
+
+// Now you can use these types in your function
+export async function getGameStatus(gameId: string, userId: string): Promise<GameData> {
     console.log(`getting game status for game ${gameId} and user ${userId}`);
 
     const { data: game, error: gameError } = await supabase
@@ -388,7 +414,7 @@ export async function getGameStatus(gameId: string, userId: string) {
         return 3; // Game has ended
     };
 
-    const combinedGameData = {
+    const combinedGameData: GameData = {
         gameId: game.id,
         currentRoundId: game.current_round_id,
         gameState: getGameState(game, currentTime),
