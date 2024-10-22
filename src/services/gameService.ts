@@ -379,10 +379,21 @@ export async function getGameStatus(gameId: string, userId: string) {
         throw new Error(`Failed to fetch matches: ${matchError.message || 'Unknown error'}`);
     }
 
+    const currentTime = new Date().toISOString();
+
+    const getGameState = (game: any, currentTime: string) => {
+        if (currentTime < game.registration_start_date) return 0; // Registration hasn't started
+        if (currentTime < game.game_start_date) return 1; // Registration is open
+        if (!game.completed) return 2; // Game is active
+        return 3; // Game has ended
+    };
+
     const combinedGameData = {
         gameId: game.id,
         currentRoundId: game.current_round_id,
-        completed: game.completed,
+        gameState: getGameState(game, currentTime),
+        registrationStart: game.registration_start_date,
+        gameStart: game.game_start_date,
         rounds: game.rounds.map(round => {
             const match = userMatches.find(m => m.round_id === round.id);
             return {
@@ -403,7 +414,7 @@ export async function getGameStatus(gameId: string, userId: string) {
         })
     };
 
-    // console.log('Combined game data:', JSON.stringify(combinedGameData, null, 2));
+    console.log('Combined game data:', JSON.stringify(combinedGameData, null, 2));
 
     return combinedGameData;
 }
