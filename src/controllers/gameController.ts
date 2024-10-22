@@ -33,12 +33,13 @@ export const createGame = async (req: Request, res: Response) => {
 
 export const registerForGame = async (req: Request, res: Response) => {
     const { fid, gameId } = req.body;
-
+    console.log('body: ', req.body);
+    console.log(`registering for game ${gameId} with fid ${fid}`);
     try {
         // Fetch game details including max_rounds
         const { data: gameData, error: gameError } = await supabase
             .from('games')
-            .select('max_rounds, registration_start_date, game_start_date')
+            .select('max_rounds, registration_start_date, game_start_date, current_round_id')
             .eq('id', gameId)
             .single();
 
@@ -50,12 +51,16 @@ export const registerForGame = async (req: Request, res: Response) => {
         const registrationStartDate = new Date(gameData.registration_start_date);
         const gameStartDate = new Date(gameData.game_start_date);
 
-        if (currentTime < registrationStartDate) {
-            return res.status(400).json({ message: 'Registration has not started yet' });
-        }
+        // if (currentTime < registrationStartDate) {
+        //     return res.status(400).json({ message: 'Registration has not started yet' });
+        // }
 
-        if (currentTime >= gameStartDate) {
-            return res.status(400).json({ message: 'Registration period has ended' });
+        // if (currentTime >= gameStartDate) {
+        //     return res.status(400).json({ message: 'Registration period has ended' });
+        // }
+
+        if (gameData.current_round_id !== null) {
+            return res.status(400).json({ message: 'Game has already started' });
         }
 
         const maxRounds = gameData.max_rounds;
@@ -119,7 +124,11 @@ export const registerForGame = async (req: Request, res: Response) => {
 };
 
 export const makePlay = async (req: Request, res: Response) => {
+    console.log("making play");
     const { matchId, fid, move } = req.body;
+    console.log("matchId: ", matchId);
+    console.log("fid: ", fid);
+    console.log("move: ", move);
 
     if (![0, 1, 2].includes(move)) {
         return res.status(400).json({ message: 'Invalid move' });
@@ -152,26 +161,33 @@ export const makePlay = async (req: Request, res: Response) => {
         }
 
         console.log("roundData: ", roundData);
-        
+
         // Check if the current time is within the round's start and end times
         const currentTime = new Date();
         const roundStartTime = new Date(roundData.start_time);
         const roundEndTime = new Date(roundData.end_time);
 
-        if (currentTime < roundStartTime || currentTime > roundEndTime) {
-            return res.status(400).send('Move not allowed outside of round time');
-        }
+        console.log("b");
+        // if (currentTime < roundStartTime || currentTime > roundEndTime) {
+        //     return res.status(400).send('Move not allowed outside of round time');
+        // }
 
         let updateField;
-
+        console.log("a");
+        console.log("player1: ", matchData.player1_id);
+        console.log("fid: ", fid);
         if (matchData.player1_id === fid && !matchData.player1_move) {
             updateField = 'player1_move';
+            console.log("1");
         } else if (matchData.player2_id === fid && !matchData.player2_move) {
             updateField = 'player2_move';
+            console.log("2");
         } else {
             return res.status(400).send('Invalid move or move already made');
+            console.log("3");
         }
 
+        console.log("MOVE");
         const { error: updateError } = await supabase
             .from('matches')
             .update({ [updateField]: move })

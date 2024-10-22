@@ -44,6 +44,7 @@ export type Database = {
           registration_start_date: string
           round_length_minutes: number
           sponsor_id: number | null
+          winner_id: number | null
         }
         Insert: {
           completed?: boolean
@@ -54,6 +55,7 @@ export type Database = {
           registration_start_date: string
           round_length_minutes: number
           sponsor_id?: number | null
+          winner_id?: number | null
         }
         Update: {
           completed?: boolean
@@ -64,8 +66,24 @@ export type Database = {
           registration_start_date?: string
           round_length_minutes?: number
           sponsor_id?: number | null
+          winner_id?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "games_current_round_id_fkey"
+            columns: ["current_round_id"]
+            isOneToOne: false
+            referencedRelation: "rounds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "games_winner_id_fkey"
+            columns: ["winner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       matches: {
         Row: {
@@ -95,7 +113,36 @@ export type Database = {
           round_id?: number
           winner_id?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "matches_player1_id_fkey"
+            columns: ["player1_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_player2_id_fkey"
+            columns: ["player2_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_round_id_fkey"
+            columns: ["round_id"]
+            isOneToOne: false
+            referencedRelation: "rounds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_winner_id_fkey"
+            columns: ["winner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rounds: {
         Row: {
@@ -119,7 +166,15 @@ export type Database = {
           round_number?: number
           start_time?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "rounds_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_registration: {
         Row: {
@@ -143,7 +198,22 @@ export type Database = {
           token_balance?: number | null
           user_id?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "user_registration_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_registration_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {

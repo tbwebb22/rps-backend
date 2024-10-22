@@ -1,4 +1,5 @@
 import { supabase } from '../db/supabase';
+import { GameData } from '../types/types';
 
 export async function startReadyGames() {
     const { data: gamesToStart, error: gamesToStartError } = await supabase
@@ -229,10 +230,13 @@ export async function processRound(roundId: number) {
             if (gameUpdateError) throw gameUpdateError;
         } else {
             console.log(`completing game ${roundData.game_id}`);
-            // Mark the game as completed in the database
+            // Mark the game as completed and set the winner in the database
             const { error: updateGameError } = await supabase
                 .from('games')
-                .update({ completed: true })
+                .update({ 
+                    completed: true,
+                    winner_id: winners[0]  // Assuming winners[0] contains the ID of the final winner
+                })
                 .eq('id', roundData.game_id);
 
             if (updateGameError) {
@@ -334,31 +338,6 @@ async function updateWinner(matchId: number, winnerId: number) {
     if (error) throw error;
 }
 
-interface Match {
-    id: number;
-    opponentId: number | null;
-    opponentMove: number | null;
-    playerMove: number | null;
-    playerWon: boolean;
-}
-
-interface Round {
-    id: number;
-    round_number: number;
-    start_time: string;
-    end_time: string;
-    match: Match | null;
-}
-
-interface GameData {
-    gameId: number;
-    currentRoundId: number | null;
-    gameState: 0 | 1 | 2 | 3;
-    registrationStart: string;
-    gameStart: string;
-    rounds: Round[];
-}
-
 // Now you can use these types in your function
 export async function getGameStatus(gameId: string, userId: string): Promise<GameData> {
     console.log(`getting game status for game ${gameId} and user ${userId}`);
@@ -372,6 +351,10 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
                 round_number,
                 start_time,
                 end_time
+            ),
+            user_registrations:user_registration!user_registration_game_id_fkey(
+                user_id,
+                registered_at
             )
         `)
         .eq('id', gameId)
@@ -385,6 +368,8 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
     if (!game) {
         throw new Error(`No game data returned for id ${gameId}`);
     }
+
+    // console.log('GAME DATA: ', game);
     
     // get all the matches for this game that this user is in
     const { data: userMatches, error: matchError } = await supabase
@@ -408,18 +393,40 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
     const currentTime = new Date().toISOString();
 
     const getGameState = (game: any, currentTime: string) => {
-        if (currentTime < game.registration_start_date) return 0; // Registration hasn't started
-        if (currentTime < game.game_start_date) return 1; // Registration is open
-        if (!game.completed) return 2; // Game is active
-        return 3; // Game has ended
+        const roundNumber = getRoundNumber(game);
+        if (roundNumber === null) {
+            if (currentTime < game.registration_start_date) {
+                return 0; // Registration hasn't started
+            } else {
+                return 1; // Registration is open
+            }
+        } else if (game.completed) {
+            return 3; // Game has ended
+        } else {
+            return 2; // Game is active
+        }
+    };
+
+    const getRoundNumber = (game: any) => {
+        if (!game.current_round_id) return null;
+        return game.rounds.find((round: any) => round.id === game.current_round_id)?.round_number;
+    };
+
+    const getGameWinner = (game: any) => {
+        if (game.completed) return game.rounds[game.rounds.length - 1].winner_id;
+        return null;
     };
 
     const combinedGameData: GameData = {
         gameId: game.id,
         currentRoundId: game.current_round_id,
+        currentRoundNumber: getRoundNumber(game),
         gameState: getGameState(game, currentTime),
         registrationStart: game.registration_start_date,
         gameStart: game.game_start_date,
+        maxRegistrations: 2 ** game.max_rounds,
+        currentRegistrations: game.user_registrations.length,
+        userRegistered: game.user_registrations.some(reg => reg.user_id === Number(userId)),
         rounds: game.rounds.map(round => {
             const match = userMatches.find(m => m.round_id === round.id);
             return {
@@ -444,3 +451,4 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
 
     return combinedGameData;
 }
+
