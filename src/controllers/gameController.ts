@@ -39,7 +39,7 @@ export const registerForGame = async (req: Request, res: Response) => {
         // Fetch game details including max_rounds
         const { data: gameData, error: gameError } = await supabase
             .from('games')
-            .select('max_rounds, registration_start_date, game_start_date, current_round_id')
+            .select('max_rounds, current_round_id')
             .eq('id', gameId)
             .single();
 
@@ -128,22 +128,20 @@ export const registerForGame = async (req: Request, res: Response) => {
 };
 
 export const makePlay = async (req: Request, res: Response) => {
-    console.log("making play");
     const { matchId, fid, move } = req.body;
-    console.log("matchId: ", matchId);
-    console.log("fid: ", fid);
-    console.log("move: ", move);
 
     if (![0, 1, 2].includes(move)) {
         return res.status(400).json({ message: 'Invalid move' });
     }
 
     try {
-        console.log("matchId: ", matchId);
         // Fetch match data
         const { data: matchData, error: matchError } = await supabase
             .from('matches')
-            .select('id, player1_id, player2_id, player1_move, player2_move, round_id')
+            .select(`
+                id, player1_id, player2_id, player1_move, player2_move, round_id,
+                rounds!inner(game_id)
+            `)
             .eq('id', matchId)
             .single();
 
@@ -151,47 +149,31 @@ export const makePlay = async (req: Request, res: Response) => {
             return res.status(404).send('Match not found');
         }
 
-        console.log("matchData: ", matchData);
-
-        // Fetch associated round data
-        const { data: roundData, error: roundError } = await supabase
-            .from('rounds')
-            .select('id, start_time, end_time')
-            .eq('id', matchData.round_id)
+        // Fetch game data to check current round
+        const { data: gameData, error: gameError } = await supabase
+            .from('games')
+            .select('current_round_id')
+            .eq('id', matchData.rounds.game_id)
             .single();
 
-        if (roundError) {
-            return res.status(500).send('Error fetching round data');
+        if (gameError || !gameData) {
+            return res.status(404).send('Game not found');
         }
 
-        console.log("roundData: ", roundData);
-
-        // Check if the current time is within the round's start and end times
-        const currentTime = new Date();
-        const roundStartTime = new Date(roundData.start_time);
-        const roundEndTime = new Date(roundData.end_time);
-
-        console.log("b");
-        // if (currentTime < roundStartTime || currentTime > roundEndTime) {
-        //     return res.status(400).send('Move not allowed outside of round time');
-        // }
+        // Check if the match belongs to the current round
+        if (matchData.round_id !== gameData.current_round_id) {
+            return res.status(400).send('This match is not in the current round');
+        }
 
         let updateField;
-        console.log("a");
-        console.log("player1: ", matchData.player1_id);
-        console.log("fid: ", fid);
         if (matchData.player1_id === fid && !matchData.player1_move) {
             updateField = 'player1_move';
-            console.log("1");
         } else if (matchData.player2_id === fid && !matchData.player2_move) {
             updateField = 'player2_move';
-            console.log("2");
         } else {
             return res.status(400).send('Invalid move or move already made');
-            console.log("3");
         }
 
-        console.log("MOVE");
         const { error: updateError } = await supabase
             .from('matches')
             .update({ [updateField]: move })
@@ -203,7 +185,6 @@ export const makePlay = async (req: Request, res: Response) => {
 
         res.status(200).send({ message: 'Move recorded' });
     } catch (err) {
-        console.error('Caught error:', err);
         res.status(500).json({ message: 'An error occurred while making a play', error: (err as Error).message });
     }
 };
@@ -213,7 +194,7 @@ export const processGames = async (req: Request, res: Response) => {
         await startReadyGames();
         await processActiveGames();
 
-        console.log("Processing completed successfully.");
+        console.log("Processed games");
         res.status(200).send({ message: 'Processing completed' });
     } catch (error) {
         console.error('Error processing games:', error);
