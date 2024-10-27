@@ -202,6 +202,8 @@ export async function processRound(roundId: number) {
             winners.push(winnerId);
         }
 
+        console.log("winners: ", winners);
+
         // create next set of matches if necessary
         if (winners.length > 1) {
             // Get the roundId for the next round
@@ -422,24 +424,26 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
         maxRegistrations: 2 ** game.max_rounds,
         currentRegistrations: game.user_registrations.length,
         userRegistered: game.user_registrations.some(reg => reg.user_id === Number(userId)),
-        rounds: game.rounds.map(round => {
-            const match = userMatches.find(m => m.round_id === round.id);
-            return {
-                id: round.id,
-                round_number: round.round_number,
-                start_time: round.start_time,
-                end_time: round.end_time,
-                match: match ? {
-                    id: match.id,
-                    opponentId: match.player1_id === Number(userId) ? match.player2_id : match.player1_id,
-                    opponentMove: match.round_id === game.current_round_id 
-                        ? null 
-                        : (match.player1_id === Number(userId) ? match.player2_move : match.player1_move),
-                    playerMove: match.player1_id === Number(userId) ? match.player1_move : match.player2_move,
-                    playerWon: match.winner_id === Number(userId),
-                } : null
-            };
-        }),
+        rounds: game.rounds
+            .sort((a, b) => a.id - b.id)  // Sort rounds by id, smallest first
+            .map(round => {
+                const match = userMatches.find(m => m.round_id === round.id);
+                return {
+                    id: round.id,
+                    round_number: round.round_number,
+                    start_time: round.start_time,
+                    end_time: round.end_time,
+                    match: match ? {
+                        id: match.id,
+                        opponentId: match.player1_id === Number(userId) ? match.player2_id : match.player1_id,
+                        opponentMove: match.round_id === game.current_round_id 
+                            ? null 
+                            : (match.player1_id === Number(userId) ? match.player2_move : match.player1_move),
+                        playerMove: match.player1_id === Number(userId) ? match.player1_move : match.player2_move,
+                        playerWon: match.winner_id === Number(userId),
+                    } : null
+                };
+            }),
         winnerId: game.winner_id
     };
 
