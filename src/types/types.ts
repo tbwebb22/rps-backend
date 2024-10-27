@@ -9,7 +9,6 @@ export interface Match {
 export interface Round {
     id: number;
     round_number: number;
-    start_time: string;
     end_time: string;
     match: Match | null;
 }

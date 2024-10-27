@@ -56,7 +56,6 @@ export async function startGame(gameId: number) {
                 .insert({
                     game_id: gameId,
                     round_number: round,
-                    start_time: startTime.toISOString(),
                     end_time: endTime.toISOString()
                 })
                 .select('id')
@@ -351,7 +350,6 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
             rounds:rounds!rounds_game_id_fkey(
                 id,
                 round_number,
-                start_time,
                 end_time
             ),
             user_registrations:user_registration!user_registration_game_id_fkey(
@@ -431,7 +429,6 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
                 return {
                     id: round.id,
                     round_number: round.round_number,
-                    start_time: round.start_time,
                     end_time: round.end_time,
                     match: match ? {
                         id: match.id,

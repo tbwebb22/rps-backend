@@ -45,6 +45,7 @@ export type Database = {
           round_length_minutes: number
           sponsor_id: number | null
           winner_id: number | null
+          winner_reward: number | null
         }
         Insert: {
           completed?: boolean
@@ -56,6 +57,7 @@ export type Database = {
           round_length_minutes: number
           sponsor_id?: number | null
           winner_id?: number | null
+          winner_reward?: number | null
         }
         Update: {
           completed?: boolean
@@ -67,6 +69,7 @@ export type Database = {
           round_length_minutes?: number
           sponsor_id?: number | null
           winner_id?: number | null
+          winner_reward?: number | null
         }
         Relationships: [
           {
@@ -150,21 +153,18 @@ export type Database = {
           game_id: number
           id: number
           round_number: number
-          start_time: string
         }
         Insert: {
           end_time: string
           game_id: number
           id?: number
           round_number: number
-          start_time: string
         }
         Update: {
           end_time?: string
           game_id?: number
           id?: number
           round_number?: number
-          start_time?: string
         }
         Relationships: [
           {
