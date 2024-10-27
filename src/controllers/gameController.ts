@@ -47,18 +47,6 @@ export const registerForGame = async (req: Request, res: Response) => {
             return res.status(404).json({ message: 'Game not found' });
         }
 
-        const currentTime = new Date();
-        const registrationStartDate = new Date(gameData.registration_start_date);
-        const gameStartDate = new Date(gameData.game_start_date);
-
-        // if (currentTime < registrationStartDate) {
-        //     return res.status(400).json({ message: 'Registration has not started yet' });
-        // }
-
-        // if (currentTime >= gameStartDate) {
-        //     return res.status(400).json({ message: 'Registration period has ended' });
-        // }
-
         if (gameData.current_round_id !== null) {
             return res.status(400).json({ message: 'Game has already started' });
         }
