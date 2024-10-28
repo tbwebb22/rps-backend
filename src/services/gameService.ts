@@ -41,13 +41,11 @@ export async function startGame(gameId: number) {
         const maxRounds = gameData.max_rounds;
         const roundLengthMinutes = gameData.round_length_minutes;
         const actualRounds = Math.min(Math.ceil(Math.log2(registeredPlayersCount)), maxRounds);
-        const actualPlayers = Math.min(2 ** actualRounds, registeredPlayersCount);
         const gameStartTime = new Date(gameData.game_start_date);
         let roundOneId;
 
         // Loop through each round and create round entries (with time)
         for (let round = 1; round <= actualRounds; round++) {
-            const startTime = new Date(gameStartTime.getTime() + (round - 1) * roundLengthMinutes * 60000);
             const endTime = new Date(gameStartTime.getTime() + round * roundLengthMinutes * 60000);
 
             // Insert the round entry into the 'rounds' table
@@ -131,8 +129,6 @@ export async function startGame(gameId: number) {
 export async function processActiveGames() {
     const activeGames = await getActiveGames();
 
-    console.log("activeGames: ", activeGames);
-
     for (const game of activeGames) {
         if (!game.current_round_id) {
             throw new Error(`Game ${game.id} has no current round`);
@@ -147,11 +143,8 @@ export async function processActiveGames() {
 
         if (roundError) throw roundError;
 
-        console.log("roundData: ", roundData);
-
+        // if past the rounds end time, process the round
         const currentTime = new Date().toISOString();
-        console.log("currentTime: ", currentTime);
-        console.log("roundData.end_time: ", roundData.end_time);
         if (currentTime > roundData.end_time) await processRound(game.current_round_id);
     }
 }

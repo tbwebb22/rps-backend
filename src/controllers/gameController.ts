@@ -33,8 +33,7 @@ export const createGame = async (req: Request, res: Response) => {
 
 export const registerForGame = async (req: Request, res: Response) => {
     const { fid, gameId } = req.body;
-    console.log('body: ', req.body);
-    console.log(`registering for game ${gameId} with fid ${fid}`);
+
     try {
         // Fetch game details including max_rounds
         const { data: gameData, error: gameError } = await supabase
