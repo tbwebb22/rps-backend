@@ -145,28 +145,34 @@ export async function processActiveGames() {
 
 export async function processRound(roundId: number) {
     try {
-        // Fetch round data
-        const { data: roundData, error: roundError } = await supabase
+        // Fetch round data with its matches in a single query
+        const { data: roundData, error: queryError } = await supabase
             .from('rounds')
-            .select('*')
+            .select(`
+                id,
+                game_id,
+                round_number,
+                end_time,
+                matches (
+                    id,
+                    player1_id,
+                    player2_id,
+                    player1_move,
+                    player2_move
+                )
+            `)
             .eq('id', roundId)
             .single();
 
-        if (roundError || !roundData) {
+        if (queryError || !roundData) {
             throw new Error(`No round data found for round ${roundId}`);
         }
 
-        // Fetch matches for the current round
-        const { data: matches, error: matchError } = await supabase
-            .from('matches')
-            .select('*')
-            .eq('round_id', roundId);
-
-        if (matchError) throw matchError;
+        const matches = roundData.matches;
 
         const winners = [];
         for (const match of matches) {
-            const winnerId = await getMatchWinner(match);
+            const winnerId = await getMatchWinner(match.id, match.player1_id, match.player1_move, match.player2_id, match.player2_move);
             await updateWinner(match.id, winnerId);
             winners.push(winnerId);
         }
@@ -210,8 +216,6 @@ export async function processRound(roundId: number) {
             if (updateGameError) {
                 throw updateGameError;
             }
-
-            console.log(`Game ${roundData.game_id} completed. Winner: ${winners[0]}`);
         }
 
         return null;  // Success
@@ -233,35 +237,32 @@ export async function getActiveGames() {
 }
 
 export async function getMatchWinner(
-    match: {
-        id: number;
-        player1_id: number | null;
-        player1_move: number | null;
-        player2_id: number | null;
-        player2_move: number | null;
-        round_id: number;
-        winner_id: number | null;
-    }) {
+        id: number,
+        player1_id: number | null,
+        player1_move: number | null,
+        player2_id: number | null,
+        player2_move: number | null,
+    ) {
     let winnerId;
 
-    if (match.player2_move === null || match.player2_id === null) {
-        winnerId = match.player1_id;
-    } else if (match.player1_move === null || match.player1_id === null) {
-        winnerId = match.player2_id;
+    if (player2_move === null || player2_id === null) {
+        winnerId = player1_id;
+    } else if (player1_move === null || player1_id === null) {
+        winnerId = player2_id;
     } else {
-        if (match.player1_move === match.player2_move) {
-            winnerId = match.player1_id;  // Player 1 wins ties
-        } else if ((match.player1_move === 0 && match.player2_move === 2) ||  // Rock beats Scissors
-            (match.player1_move === 1 && match.player2_move === 0) ||  // Paper beats Rock
-            (match.player1_move === 2 && match.player2_move === 1)) {  // Scissors beats Paper
-            winnerId = match.player1_id;
+        if (player1_move === player2_move) {
+            winnerId = player1_id;  // Player 1 wins ties
+        } else if ((player1_move === 0 && player2_move === 2) ||  // Rock beats Scissors
+            (player1_move === 1 && player2_move === 0) ||  // Paper beats Rock
+            (player1_move === 2 && player2_move === 1)) {  // Scissors beats Paper
+            winnerId = player1_id;
         } else {
-            winnerId = match.player2_id;
+            winnerId = player2_id;
         }
     }
 
     if (!winnerId) {
-        throw new Error(`Invalid match ${match.id}`);
+        throw new Error(`Invalid match ${id}`);
     }
 
     return winnerId;
@@ -306,10 +307,7 @@ async function updateWinner(matchId: number, winnerId: number) {
     if (error) throw error;
 }
 
-// Now you can use these types in your function
 export async function getGameStatus(gameId: string, userId: string): Promise<GameData> {
-    console.log(`getting game status for game ${gameId} and user ${userId}`);
-
     const { data: game, error: gameError } = await supabase
         .from('games')
         .select(`
@@ -335,8 +333,6 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
     if (!game) {
         throw new Error(`No game data returned for id ${gameId}`);
     }
-
-    // console.log('GAME DATA: ', game);
 
     // get all the matches for this game that this user is in
     const { data: userMatches, error: matchError } = await supabase
@@ -410,8 +406,6 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
             }),
         winnerId: game.winner_id
     };
-
-    console.log('Combined game data:', JSON.stringify(combinedGameData, null, 2));
 
     return combinedGameData;
 }
