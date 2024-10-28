@@ -69,10 +69,10 @@ export async function startGame(gameId: number) {
 
         // create matches for the first round
         const firstRoundMatches: {
-                round_id: number;
-                player1_id: number;
-                player2_id: number | null;
-            }[] = [];
+            round_id: number;
+            player1_id: number;
+            player2_id: number | null;
+        }[] = [];
 
         const firstRoundMatchCount = 2 ** (actualRounds - 1);
 
@@ -164,19 +164,6 @@ export async function processRound(roundId: number) {
 
         if (matchError) throw matchError;
 
-        // Fetch associated game data
-        // const { data: gameData, error: gameError } = await supabase
-        //     .from('games')
-        //     .select('*')
-        //     .eq('id', roundData.game_id)
-        //     .single();
-
-        // if (gameError) {
-        //     throw new Error(`Error fetching game data for round ${roundId}`);
-        // }
-
-
-
         const winners = [];
         for (const match of matches) {
             const winnerId = await getMatchWinner(match);
@@ -214,7 +201,7 @@ export async function processRound(roundId: number) {
             // Mark the game as completed and set the winner in the database
             const { error: updateGameError } = await supabase
                 .from('games')
-                .update({ 
+                .update({
                     completed: true,
                     winner_id: winners[0]  // Assuming winners[0] contains the ID of the final winner
                 })
@@ -255,7 +242,7 @@ export async function getMatchWinner(
         round_id: number;
         winner_id: number | null;
     }) {
-        let winnerId;
+    let winnerId;
 
     if (match.player2_move === null || match.player2_id === null) {
         winnerId = match.player1_id;
@@ -265,9 +252,9 @@ export async function getMatchWinner(
         if (match.player1_move === match.player2_move) {
             winnerId = match.player1_id;  // Player 1 wins ties
         } else if ((match.player1_move === 0 && match.player2_move === 2) ||  // Rock beats Scissors
-        (match.player1_move === 1 && match.player2_move === 0) ||  // Paper beats Rock
-        (match.player1_move === 2 && match.player2_move === 1)) {  // Scissors beats Paper
-            winnerId =  match.player1_id;
+            (match.player1_move === 1 && match.player2_move === 0) ||  // Paper beats Rock
+            (match.player1_move === 2 && match.player2_move === 1)) {  // Scissors beats Paper
+            winnerId = match.player1_id;
         } else {
             winnerId = match.player2_id;
         }
@@ -350,20 +337,20 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
     }
 
     // console.log('GAME DATA: ', game);
-    
+
     // get all the matches for this game that this user is in
     const { data: userMatches, error: matchError } = await supabase
-    .from('matches')
-    .select(`
+        .from('matches')
+        .select(`
         *,
         rounds!inner(
             game_id,
             round_number
         )
     `)
-    .eq('rounds.game_id', gameId)
-    .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
-    .order('id', { ascending: true });
+        .eq('rounds.game_id', gameId)
+        .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
+        .order('id', { ascending: true });
 
     if (matchError) {
         console.error('Error fetching matches:', matchError);
@@ -413,8 +400,8 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
                     match: match ? {
                         id: match.id,
                         opponentId: match.player1_id === Number(userId) ? match.player2_id : match.player1_id,
-                        opponentMove: match.round_id === game.current_round_id 
-                            ? null 
+                        opponentMove: match.round_id === game.current_round_id
+                            ? null
                             : (match.player1_id === Number(userId) ? match.player2_move : match.player1_move),
                         playerMove: match.player1_id === Number(userId) ? match.player1_move : match.player2_move,
                         playerWon: match.winner_id === Number(userId),

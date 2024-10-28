@@ -8,9 +8,9 @@ export const createGame = async (req: Request, res: Response) => {
     try {
         const { data, error } = await supabase
             .from('games')
-            .insert([{ 
-                registration_start_date, 
-                game_start_date, 
+            .insert([{
+                registration_start_date,
+                game_start_date,
                 current_round_id: null,
                 completed: false,
                 max_rounds,
@@ -23,7 +23,7 @@ export const createGame = async (req: Request, res: Response) => {
             console.error('Error details:', error);
             return res.status(500).json({ message: 'Error creating game', error });
         }
-    
+
         res.status(201).send({ message: 'Game created', gameId: data[0].id });
     } catch (err) {
         console.error('Caught error:', err);
@@ -63,7 +63,7 @@ export const registerForGame = async (req: Request, res: Response) => {
         if (!userData) {
             const { data: newUser, error: createUserError } = await supabase
                 .from('users')
-                .insert({ 
+                .insert({
                     id: fid,
                     created_at: new Date().toISOString()
                 })
@@ -108,8 +108,8 @@ export const registerForGame = async (req: Request, res: Response) => {
         // Insert user registration
         const { error: registrationError } = await supabase
             .from('user_registration')
-            .insert([{ 
-                game_id: gameId, 
+            .insert([{
+                game_id: gameId,
                 user_id: fid,
                 registered_at: new Date().toISOString()
             }])
