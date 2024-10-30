@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../db/supabase';
-import { startReadyGames, processActiveGames, startGame, processRound, getActiveGames, getMatchWinner } from '../services/gameService';
+import { startReadyGames, processActiveGames, fetchUserDetails } from '../services/gameService';
 
 export const createGame = async (req: Request, res: Response) => {
     const { registration_start_date, game_start_date, max_rounds, sponsor_id, round_length_minutes } = req.body;
@@ -61,10 +61,15 @@ export const registerForGame = async (req: Request, res: Response) => {
 
         // add user to db if they don't exist
         if (!userData) {
+            const userDetails = await fetchUserDetails(fid);
+
             const { data: newUser, error: createUserError } = await supabase
                 .from('users')
                 .insert({
                     id: fid,
+                    display_name: userDetails.Socials.Social[0].profileDisplayName,
+                    name: userDetails.Socials.Social[0].profileName,
+                    image: userDetails.Socials.Social[0].profileImage,
                     created_at: new Date().toISOString()
                 })
                 .select()
@@ -111,7 +116,8 @@ export const registerForGame = async (req: Request, res: Response) => {
             .insert([{
                 game_id: gameId,
                 user_id: fid,
-                registered_at: new Date().toISOString()
+                registered_at: new Date().toISOString(),
+                force: false
             }])
             .select();
 

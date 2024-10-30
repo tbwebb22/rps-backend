@@ -178,6 +178,7 @@ export type Database = {
       }
       user_registration: {
         Row: {
+          force: boolean
           game_id: number
           id: number
           registered_at: string
@@ -185,6 +186,7 @@ export type Database = {
           user_id: number
         }
         Insert: {
+          force: boolean
           game_id: number
           id?: number
           registered_at?: string
@@ -192,6 +194,7 @@ export type Database = {
           user_id: number
         }
         Update: {
+          force?: boolean
           game_id?: number
           id?: number
           registered_at?: string
@@ -218,15 +221,24 @@ export type Database = {
       users: {
         Row: {
           created_at: string
+          display_name: string
           id: number
+          image: string | null
+          name: string
         }
         Insert: {
           created_at?: string
+          display_name: string
           id: number
+          image?: string | null
+          name: string
         }
         Update: {
           created_at?: string
+          display_name?: string
           id?: number
+          image?: string | null
+          name?: string
         }
         Relationships: []
       }

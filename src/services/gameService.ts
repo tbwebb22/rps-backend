@@ -1,6 +1,6 @@
 import { supabase } from '../db/supabase';
 import { GameData } from '../types/types';
-
+import { fetchQuery } from "@airstack/node";
 export async function startReadyGames() {
     const { data: gamesToStart, error: gamesToStartError } = await supabase
         .from('games')
@@ -410,3 +410,29 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
     return combinedGameData;
 }
 
+export async function fetchUserDetails(fid: number) {
+    const query = `query MyQuery {
+        Socials(
+            input: {
+            filter: { dappName: { _eq: farcaster }, identity: { _eq: "fc_fid:${fid}" } }
+            blockchain: ethereum
+            }
+        ) {
+            Social {
+            profileDisplayName
+            profileImage
+            profileName
+            profileImageContentValue
+            }
+        }
+    }`;
+
+    const { data, error } = await fetchQuery(query);
+
+    if (error) {
+        console.error('Error fetching user details:', error);
+        throw error;
+    }
+
+    return data;
+}
