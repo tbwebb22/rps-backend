@@ -14,12 +14,12 @@ router.post('/play', asyncHandler(makePlay));
 router.post('/process', asyncHandler(processGames));
 router.get('/:gameId/status/:userId', async (req, res) => {
   const { gameId, userId } = req.params;
-  
+
   try {
-      const gameStatus = await getGameStatus(gameId, userId);
-      res.json(gameStatus);
+    const gameStatus = await getGameStatus(gameId, userId);
+    res.json(gameStatus);
   } catch (error) {
-      res.status(500).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
+    res.status(500).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
   }
 });
 

@@ -1,6 +1,6 @@
 import { supabase } from '../db/supabase';
 import { GameData } from '../types/types';
-
+import { fetchQuery } from "@airstack/node";
 export async function startReadyGames() {
     const { data: gamesToStart, error: gamesToStartError } = await supabase
         .from('games')
@@ -17,7 +17,6 @@ export async function startReadyGames() {
 }
 
 export async function startGame(gameId: number) {
-    console.log("starting game ", gameId);
     try {
         // Fetch registered players for the game, ordered by registration time
         const { data: players, error: playerError } = await supabase
@@ -41,13 +40,11 @@ export async function startGame(gameId: number) {
         const maxRounds = gameData.max_rounds;
         const roundLengthMinutes = gameData.round_length_minutes;
         const actualRounds = Math.min(Math.ceil(Math.log2(registeredPlayersCount)), maxRounds);
-        const actualPlayers = Math.min(2 ** actualRounds, registeredPlayersCount);
         const gameStartTime = new Date(gameData.game_start_date);
         let roundOneId;
 
         // Loop through each round and create round entries (with time)
         for (let round = 1; round <= actualRounds; round++) {
-            const startTime = new Date(gameStartTime.getTime() + (round - 1) * roundLengthMinutes * 60000);
             const endTime = new Date(gameStartTime.getTime() + round * roundLengthMinutes * 60000);
 
             // Insert the round entry into the 'rounds' table
@@ -56,7 +53,6 @@ export async function startGame(gameId: number) {
                 .insert({
                     game_id: gameId,
                     round_number: round,
-                    start_time: startTime.toISOString(),
                     end_time: endTime.toISOString()
                 })
                 .select('id')
@@ -66,7 +62,6 @@ export async function startGame(gameId: number) {
 
             if (round === 1) {
                 roundOneId = insertedRound.id;
-                console.log("roundOneId: ", roundOneId);
             }
         }
 
@@ -74,10 +69,10 @@ export async function startGame(gameId: number) {
 
         // create matches for the first round
         const firstRoundMatches: {
-                round_id: number;
-                player1_id: number;
-                player2_id: number | null;
-            }[] = [];
+            round_id: number;
+            player1_id: number;
+            player2_id: number | null;
+        }[] = [];
 
         const firstRoundMatchCount = 2 ** (actualRounds - 1);
 
@@ -101,8 +96,6 @@ export async function startGame(gameId: number) {
             }
         }
 
-        console.log('First round matches:', firstRoundMatches);
-
         // Insert matches for the first round into the database
         const { error: matchError } = await supabase
             .from('matches')
@@ -112,8 +105,6 @@ export async function startGame(gameId: number) {
             console.error('Error inserting matches:', matchError);
             throw matchError;
         }
-
-        console.log('Matches successfully inserted.');
 
         // Update the game to set current_round to 1
         const { error: updateGameError } = await supabase
@@ -132,8 +123,6 @@ export async function startGame(gameId: number) {
 export async function processActiveGames() {
     const activeGames = await getActiveGames();
 
-    console.log("activeGames: ", activeGames);
-
     for (const game of activeGames) {
         if (!game.current_round_id) {
             throw new Error(`Game ${game.id} has no current round`);
@@ -148,61 +137,45 @@ export async function processActiveGames() {
 
         if (roundError) throw roundError;
 
-        console.log("roundData: ", roundData);
-
+        // if past the rounds end time, process the round
         const currentTime = new Date().toISOString();
-        console.log("currentTime: ", currentTime);
-        console.log("roundData.end_time: ", roundData.end_time);
         if (currentTime > roundData.end_time) await processRound(game.current_round_id);
     }
 }
 
 export async function processRound(roundId: number) {
     try {
-        console.log("processing round: ", roundId);
-        // Fetch round data
-        const { data: roundData, error: roundError } = await supabase
+        // Fetch round data with its matches in a single query
+        const { data: roundData, error: queryError } = await supabase
             .from('rounds')
-            .select('*')
+            .select(`
+                id,
+                game_id,
+                round_number,
+                end_time,
+                matches (
+                    id,
+                    player1_id,
+                    player2_id,
+                    player1_move,
+                    player2_move
+                )
+            `)
             .eq('id', roundId)
             .single();
 
-        if (roundError || !roundData) {
+        if (queryError || !roundData) {
             throw new Error(`No round data found for round ${roundId}`);
         }
 
-        // Fetch associated game data
-        const { data: gameData, error: gameError } = await supabase
-            .from('games')
-            .select('*')
-            .eq('id', roundData.game_id)
-            .single();
-
-        if (gameError) {
-            throw new Error(`Error fetching game data for round ${roundId}`);
-        }
-
-        console.log("roundData: ", roundData);
-        console.log("gameData: ", gameData);
-
-        // Fetch matches for the current round
-        const { data: matches, error: matchError } = await supabase
-            .from('matches')
-            .select('*')
-            .eq('round_id', roundId);
-
-        if (matchError) throw matchError;
-
-        console.log("found following matches for this round: ", matches);
+        const matches = roundData.matches.sort((a, b) => a.id - b.id);
 
         const winners = [];
         for (const match of matches) {
-            const winnerId = await getMatchWinner(match);
+            const winnerId = await getMatchWinner(match.id, match.player1_id, match.player1_move, match.player2_id, match.player2_move);
             await updateWinner(match.id, winnerId);
             winners.push(winnerId);
         }
-
-        console.log("winners: ", winners);
 
         // create next set of matches if necessary
         if (winners.length > 1) {
@@ -231,11 +204,10 @@ export async function processRound(roundId: number) {
 
             if (gameUpdateError) throw gameUpdateError;
         } else {
-            console.log(`completing game ${roundData.game_id}`);
             // Mark the game as completed and set the winner in the database
             const { error: updateGameError } = await supabase
                 .from('games')
-                .update({ 
+                .update({
                     completed: true,
                     winner_id: winners[0]  // Assuming winners[0] contains the ID of the final winner
                 })
@@ -244,8 +216,6 @@ export async function processRound(roundId: number) {
             if (updateGameError) {
                 throw updateGameError;
             }
-
-            console.log(`Game ${roundData.game_id} completed. Winner: ${winners[0]}`);
         }
 
         return null;  // Success
@@ -267,35 +237,32 @@ export async function getActiveGames() {
 }
 
 export async function getMatchWinner(
-    match: {
-        id: number;
-        player1_id: number | null;
-        player1_move: number | null;
-        player2_id: number | null;
-        player2_move: number | null;
-        round_id: number;
-        winner_id: number | null;
-    }) {
-        let winnerId;
+        id: number,
+        player1_id: number | null,
+        player1_move: number | null,
+        player2_id: number | null,
+        player2_move: number | null,
+    ) {
+    let winnerId;
 
-    if (match.player2_move === null || match.player2_id === null) {
-        winnerId = match.player1_id;
-    } else if (match.player1_move === null || match.player1_id === null) {
-        winnerId = match.player2_id;
+    if (player2_move === null || player2_id === null) {
+        winnerId = player1_id;
+    } else if (player1_move === null || player1_id === null) {
+        winnerId = player2_id;
     } else {
-        if (match.player1_move === match.player2_move) {
-            winnerId = match.player1_id;  // Player 1 wins ties
-        } else if ((match.player1_move === 0 && match.player2_move === 2) ||  // Rock beats Scissors
-        (match.player1_move === 1 && match.player2_move === 0) ||  // Paper beats Rock
-        (match.player1_move === 2 && match.player2_move === 1)) {  // Scissors beats Paper
-            winnerId =  match.player1_id;
+        if (player1_move === player2_move) {
+            winnerId = player1_id;  // Player 1 wins ties
+        } else if ((player1_move === 0 && player2_move === 2) ||  // Rock beats Scissors
+            (player1_move === 1 && player2_move === 0) ||  // Paper beats Rock
+            (player1_move === 2 && player2_move === 1)) {  // Scissors beats Paper
+            winnerId = player1_id;
         } else {
-            winnerId = match.player2_id;
+            winnerId = player2_id;
         }
     }
 
     if (!winnerId) {
-        throw new Error(`Invalid match ${match.id}`);
+        throw new Error(`Invalid match ${id}`);
     }
 
     return winnerId;
@@ -331,7 +298,6 @@ export async function createRoundMatches(roundId: number, playerIds: number[]) {
 }
 
 async function updateWinner(matchId: number, winnerId: number) {
-    console.log(`updating winner for match ${matchId} with winnerId ${winnerId}`)
     const { error } = await supabase
         .from('matches')
         .update({ winner_id: winnerId })
@@ -340,10 +306,7 @@ async function updateWinner(matchId: number, winnerId: number) {
     if (error) throw error;
 }
 
-// Now you can use these types in your function
 export async function getGameStatus(gameId: string, userId: string): Promise<GameData> {
-    console.log(`getting game status for game ${gameId} and user ${userId}`);
-
     const { data: game, error: gameError } = await supabase
         .from('games')
         .select(`
@@ -351,7 +314,6 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
             rounds:rounds!rounds_game_id_fkey(
                 id,
                 round_number,
-                start_time,
                 end_time
             ),
             user_registrations:user_registration!user_registration_game_id_fkey(
@@ -371,21 +333,33 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
         throw new Error(`No game data returned for id ${gameId}`);
     }
 
-    // console.log('GAME DATA: ', game);
     
+
     // get all the matches for this game that this user is in
     const { data: userMatches, error: matchError } = await supabase
-    .from('matches')
-    .select(`
-        *,
-        rounds!inner(
-            game_id,
-            round_number
-        )
-    `)
-    .eq('rounds.game_id', gameId)
-    .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
-    .order('id', { ascending: true });
+        .from('matches')
+        .select(`
+            *,
+            rounds!inner(
+                game_id,
+                round_number
+            ),
+            player1:users!matches_player1_id_fkey(
+                id,
+                name,
+                display_name,
+                image
+            ),
+            player2:users!matches_player2_id_fkey(
+                id,
+                name,
+                display_name,
+                image
+            )
+        `)
+        .eq('rounds.game_id', gameId)
+        .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
+        .order('id', { ascending: true });
 
     if (matchError) {
         console.error('Error fetching matches:', matchError);
@@ -414,8 +388,32 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
         return game.rounds.find((round: any) => round.id === game.current_round_id)?.round_number;
     };
 
+    // Fetch user details
+    let userName, userDisplayName, userImage;
+    const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('name, display_name, image')
+        .eq('id', userId)
+        .single();
+
+    if (userError) {
+        console.error('Adding user to db', userError);
+        const addedUserData = await addUserToDb(Number(userId));
+        userName = addedUserData.name;
+        userDisplayName = addedUserData.display_name;
+        userImage = addedUserData.image;
+        // throw new Error(`Failed to fetch user: ${userError.message || 'Unknown error'}`);
+    } else {
+        userName = userData.name;
+        userDisplayName = userData.display_name;
+        userImage = userData.image;
+    }
+
     const combinedGameData: GameData = {
         gameId: game.id,
+        userName: userName,
+        userDisplayName: userDisplayName,
+        userImage: userImage,
         currentRoundId: game.current_round_id,
         currentRoundNumber: getRoundNumber(game),
         gameState: getGameState(game, currentTime),
@@ -431,24 +429,69 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
                 return {
                     id: round.id,
                     round_number: round.round_number,
-                    start_time: round.start_time,
                     end_time: round.end_time,
                     match: match ? {
                         id: match.id,
                         opponentId: match.player1_id === Number(userId) ? match.player2_id : match.player1_id,
-                        opponentMove: match.round_id === game.current_round_id 
-                            ? null 
+                        opponentMove: match.round_id === game.current_round_id
+                            ? null
                             : (match.player1_id === Number(userId) ? match.player2_move : match.player1_move),
                         playerMove: match.player1_id === Number(userId) ? match.player1_move : match.player2_move,
                         playerWon: match.winner_id === Number(userId),
+                        opponentName: match.player1_id === Number(userId) ? match.player2?.name ?? null : match.player1?.name ?? null,
+                        opponentDisplayName: match.player1_id === Number(userId) ? match.player2?.display_name ?? null : match.player1?.display_name ?? null,
+                        opponentImage: match.player1_id === Number(userId) ? match.player2?.image ?? null : match.player1?.image ?? null
                     } : null
                 };
             }),
-        winnerId: game.winner_id
+        winnerId: game.winner_id,
     };
-
-    console.log('Combined game data:', JSON.stringify(combinedGameData, null, 2));
 
     return combinedGameData;
 }
 
+export async function addUserToDb(fid: number) {
+    const userDetails = await fetchUserDetails(fid);
+
+    const { data: newUser, error: createUserError } = await supabase
+        .from('users')
+        .insert({
+            id: fid,
+            display_name: userDetails.Socials.Social[0].profileDisplayName,
+            name: userDetails.Socials.Social[0].profileName,
+            image: userDetails.Socials.Social[0].profileImage,
+            created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+    if (createUserError) {
+        throw new Error('Error creating user');
+    }
+    return newUser;
+}
+
+export async function fetchUserDetails(fid: number) {
+    const query = `query MyQuery {
+        Socials(
+            input: {
+            filter: { dappName: { _eq: farcaster }, identity: { _eq: "fc_fid:${fid}" } }
+            blockchain: ethereum
+            }
+        ) {
+            Social {
+            profileDisplayName
+            profileImage
+            profileName
+            }
+        }
+    }`;
+
+    const { data, error } = await fetchQuery(query);
+
+    if (error) {
+        console.error('Error fetching user details:', error);
+        throw error;
+    }
+
+    return data;
+}
