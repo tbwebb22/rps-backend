@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../db/supabase';
-import { startReadyGames, processActiveGames, fetchUserDetails } from '../services/gameService';
+import { startReadyGames, processActiveGames, fetchUserDetails, addUserToDb } from '../services/gameService';
 
 export const createGame = async (req: Request, res: Response) => {
     const { registration_start_date, game_start_date, max_rounds, sponsor_id, round_length_minutes } = req.body;
@@ -60,25 +60,8 @@ export const registerForGame = async (req: Request, res: Response) => {
             .single();
 
         // add user to db if they don't exist
-        if (!userData) {
-            const userDetails = await fetchUserDetails(fid);
+        if (!userData) await addUserToDb(fid);
 
-            const { data: newUser, error: createUserError } = await supabase
-                .from('users')
-                .insert({
-                    id: fid,
-                    display_name: userDetails.Socials.Social[0].profileDisplayName,
-                    name: userDetails.Socials.Social[0].profileName,
-                    image: userDetails.Socials.Social[0].profileImage,
-                    created_at: new Date().toISOString()
-                })
-                .select()
-                .single();
-
-            if (createUserError) {
-                return res.status(500).send('Error creating user');
-            }
-        }
 
         // Check if user is already registered for this game
         const { data: existingRegistration, error: checkError } = await supabase
@@ -199,7 +182,6 @@ export const processGames = async (req: Request, res: Response) => {
         await startReadyGames();
         await processActiveGames();
 
-        console.log("Processed games");
         res.status(200).send({ message: 'Processing completed' });
     } catch (error) {
         console.error('Error processing games:', error);

@@ -168,7 +168,7 @@ export async function processRound(roundId: number) {
             throw new Error(`No round data found for round ${roundId}`);
         }
 
-        const matches = roundData.matches;
+        const matches = roundData.matches.sort((a, b) => a.id - b.id);
 
         const winners = [];
         for (const match of matches) {
@@ -298,7 +298,6 @@ export async function createRoundMatches(roundId: number, playerIds: number[]) {
 }
 
 async function updateWinner(matchId: number, winnerId: number) {
-    console.log(`updating winner for match ${matchId} with winnerId ${winnerId}`)
     const { error } = await supabase
         .from('matches')
         .update({ winner_id: winnerId })
@@ -334,16 +333,30 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
         throw new Error(`No game data returned for id ${gameId}`);
     }
 
+    
+
     // get all the matches for this game that this user is in
     const { data: userMatches, error: matchError } = await supabase
         .from('matches')
         .select(`
-        *,
-        rounds!inner(
-            game_id,
-            round_number
-        )
-    `)
+            *,
+            rounds!inner(
+                game_id,
+                round_number
+            ),
+            player1:users!matches_player1_id_fkey(
+                id,
+                name,
+                display_name,
+                image
+            ),
+            player2:users!matches_player2_id_fkey(
+                id,
+                name,
+                display_name,
+                image
+            )
+        `)
         .eq('rounds.game_id', gameId)
         .or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
         .order('id', { ascending: true });
@@ -375,8 +388,32 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
         return game.rounds.find((round: any) => round.id === game.current_round_id)?.round_number;
     };
 
+    // Fetch user details
+    let userName, userDisplayName, userImage;
+    const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('name, display_name, image')
+        .eq('id', userId)
+        .single();
+
+    if (userError) {
+        console.error('Adding user to db', userError);
+        const addedUserData = await addUserToDb(Number(userId));
+        userName = addedUserData.name;
+        userDisplayName = addedUserData.display_name;
+        userImage = addedUserData.image;
+        // throw new Error(`Failed to fetch user: ${userError.message || 'Unknown error'}`);
+    } else {
+        userName = userData.name;
+        userDisplayName = userData.display_name;
+        userImage = userData.image;
+    }
+
     const combinedGameData: GameData = {
         gameId: game.id,
+        userName: userName,
+        userDisplayName: userDisplayName,
+        userImage: userImage,
         currentRoundId: game.current_round_id,
         currentRoundNumber: getRoundNumber(game),
         gameState: getGameState(game, currentTime),
@@ -401,13 +438,36 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
                             : (match.player1_id === Number(userId) ? match.player2_move : match.player1_move),
                         playerMove: match.player1_id === Number(userId) ? match.player1_move : match.player2_move,
                         playerWon: match.winner_id === Number(userId),
+                        opponentName: match.player1_id === Number(userId) ? match.player2?.name ?? null : match.player1?.name ?? null,
+                        opponentDisplayName: match.player1_id === Number(userId) ? match.player2?.display_name ?? null : match.player1?.display_name ?? null,
+                        opponentImage: match.player1_id === Number(userId) ? match.player2?.image ?? null : match.player1?.image ?? null
                     } : null
                 };
             }),
-        winnerId: game.winner_id
+        winnerId: game.winner_id,
     };
 
     return combinedGameData;
+}
+
+export async function addUserToDb(fid: number) {
+    const userDetails = await fetchUserDetails(fid);
+
+    const { data: newUser, error: createUserError } = await supabase
+        .from('users')
+        .insert({
+            id: fid,
+            display_name: userDetails.Socials.Social[0].profileDisplayName,
+            name: userDetails.Socials.Social[0].profileName,
+            image: userDetails.Socials.Social[0].profileImage,
+            created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+    if (createUserError) {
+        throw new Error('Error creating user');
+    }
+    return newUser;
 }
 
 export async function fetchUserDetails(fid: number) {
@@ -422,7 +482,6 @@ export async function fetchUserDetails(fid: number) {
             profileDisplayName
             profileImage
             profileName
-            profileImageContentValue
             }
         }
     }`;
