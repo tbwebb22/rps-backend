@@ -206,7 +206,7 @@ export async function processRound(roundId: number) {
 
             const minutesLeft = Math.floor((new Date(nextRoundData.end_time).getTime() - new Date().getTime()) / 60000);
 
-            await sendPlayDirectCasts(roundData.game_id, roundData.round_number, minutesLeft, winners);
+            await sendPlayDirectCasts(roundData.game_id, roundData.round_number + 1, minutesLeft, winners);
         } else {
             // Mark the game as completed and set the winner in the database
             const { error: updateGameError } = await supabase
@@ -514,9 +514,9 @@ export async function sendPlayDirectCasts(gameId: number, roundNumber: number, m
 }
 
 export async function sendPlayDirectCast(gameId: number, roundNumber: number, recipientFid: number, minutesLeft: number) {
-    // const idempotencyKey = `game_${gameId}_round_${roundNumber}`
+    const idempotencyKey = `game_${gameId}_round_${roundNumber}`
     // const idempotencyKey = Math.random().toString(36).substring(2, 15);
-    const idempotencyKey = "ed3d9b95-5eed-475f-9c7d-58bdc3b9ac00";
+    // const idempotencyKey = "ed3d9b95-5eed-475f-9c7d-58bdc3b9ac00";
     const message = `Round ${roundNumber} has begun! You have ${minutesLeft} minutes to select Rock, Pepe, or Slizards!`;
     const frameUrl = `https://rps-frame.vercel.app/api/game/${gameId}`;
     await sendDirectCast(recipientFid, idempotencyKey, message);
