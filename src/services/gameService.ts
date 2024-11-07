@@ -401,7 +401,7 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
         .single();
 
     if (userError) {
-        console.error('Adding user to db', userError);
+        console.log(`Adding FID ${userId} to DB`);
         const addedUserData = await addUserToDb(Number(userId));
         userName = addedUserData.name;
         userDisplayName = addedUserData.display_name;
@@ -515,8 +515,9 @@ export async function sendPlayDirectCasts(gameId: number, roundNumber: number, m
 
 export async function sendPlayDirectCast(gameId: number, roundNumber: number, recipientFid: number, minutesLeft: number) {
     // const idempotencyKey = `game_${gameId}_round_${roundNumber}`
-    const idempotencyKey = Math.random().toString(36).substring(2, 15);
-    const message = `Round ${roundNumber} has begun!You have ${minutesLeft} minutes to select Rock, Pepe, or Slizards!`;
+    // const idempotencyKey = Math.random().toString(36).substring(2, 15);
+    const idempotencyKey = "ed3d9b95-5eed-475f-9c7d-58bdc3b9ac00";
+    const message = `Round ${roundNumber} has begun! You have ${minutesLeft} minutes to select Rock, Pepe, or Slizards!`;
     const frameUrl = `https://rps-frame.vercel.app/api/game/${gameId}`;
     await sendDirectCast(recipientFid, idempotencyKey, message);
     await sendDirectCast(recipientFid, idempotencyKey, frameUrl);
