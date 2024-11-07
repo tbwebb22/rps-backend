@@ -1,6 +1,8 @@
 import { supabase } from '../db/supabase';
 import { GameData } from '../types/types';
 import { fetchQuery } from "@airstack/node";
+import axios from 'axios';
+
 export async function startReadyGames() {
     const { data: gamesToStart, error: gamesToStartError } = await supabase
         .from('games')
@@ -78,21 +80,17 @@ export async function startGame(gameId: number) {
 
         // Create matches and add only the first player
         for (let i = 0; i < firstRoundMatchCount; i++) {
-            const player1 = players[i].user_id;
-
             firstRoundMatches.push({
                 round_id: roundOneId,
-                player1_id: player1,
+                player1_id: players[i].user_id,
                 player2_id: null
             });
         }
 
-        // Add the second player to the matches, some matches may have null as player2_id
+        // Add the second player to the matches if there are enough players
         for (let i = 0; i < firstRoundMatchCount; i++) {
             if (i + firstRoundMatchCount < players.length) {
                 firstRoundMatches[i].player2_id = players[i + firstRoundMatchCount].user_id;
-            } else {
-                firstRoundMatches[i].player2_id = null;
             }
         }
 
@@ -113,6 +111,8 @@ export async function startGame(gameId: number) {
             .eq('id', gameId);
 
         if (updateGameError) throw updateGameError;
+
+        await sendPlayDirectCasts(gameId, 1, roundLengthMinutes, players.map(p => p.user_id));
 
         return null;  // Success
     } catch (error) {
@@ -203,6 +203,10 @@ export async function processRound(roundId: number) {
                 .eq('id', roundData.game_id);
 
             if (gameUpdateError) throw gameUpdateError;
+
+            const minutesLeft = Math.floor((new Date(roundData.end_time).getTime() - new Date().getTime()) / 60000);
+
+            await sendPlayDirectCasts(roundData.game_id, roundData.round_number, minutesLeft, winners);
         } else {
             // Mark the game as completed and set the winner in the database
             const { error: updateGameError } = await supabase
@@ -237,12 +241,12 @@ export async function getActiveGames() {
 }
 
 export async function getMatchWinner(
-        id: number,
-        player1_id: number | null,
-        player1_move: number | null,
-        player2_id: number | null,
-        player2_move: number | null,
-    ) {
+    id: number,
+    player1_id: number | null,
+    player1_move: number | null,
+    player2_id: number | null,
+    player2_move: number | null,
+) {
     let winnerId;
 
     if (player2_move === null || player2_id === null) {
@@ -333,7 +337,7 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
         throw new Error(`No game data returned for id ${gameId}`);
     }
 
-    
+
 
     // get all the matches for this game that this user is in
     const { data: userMatches, error: matchError } = await supabase
@@ -494,4 +498,54 @@ export async function fetchUserDetails(fid: number) {
     }
 
     return data;
+}
+
+export async function sendPlayDirectCasts(gameId: number, roundNumber: number, minutesLeft: number, fids: number[]) {
+    const results = await Promise.allSettled(
+        fids.map(fid => sendPlayDirectCast(gameId, roundNumber, fid, minutesLeft))
+    );
+    
+    // Log failures but don't stop execution
+    const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+    if (failures.length > 0) {
+        console.error(`Failed to send ${failures.length} direct casts:`, 
+            failures.map(f => f.reason));
+    }
+}
+
+export async function sendPlayDirectCast(gameId: number, roundNumber: number, recipientFid: number, minutesLeft: number) {
+    // const idempotencyKey = `game_${gameId}_round_${roundNumber}`
+    const idempotencyKey = Math.random().toString(36).substring(2, 15);
+    const message = `Round ${roundNumber} has begun!You have ${minutesLeft} minutes to select Rock, Pepe, or Slizards!`;
+    const frameUrl = `https://rps-frame.vercel.app/api/game/${gameId}`;
+    await sendDirectCast(recipientFid, idempotencyKey, message);
+    await sendDirectCast(recipientFid, idempotencyKey, frameUrl);
+}
+
+export async function sendDirectCast(recipientFid: number, idempotencyKey: string, message: string) {
+    const apiKey = process.env.DIRECT_CAST_API_KEY;
+
+    try {
+        const response = await axios.put('https://api.warpcast.com/v2/ext-send-direct-cast',
+            {
+                recipientFid,
+                message,
+                idempotencyKey
+            },
+            {
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+
+        console.log(`DC sent to ${recipientFid}`);
+        return response.data;
+    } catch (error) {
+        if (axios.isAxiosError(error)) {
+            throw new Error(`Failed to send direct cast: ${error.response?.data || error.message}`);
+        }
+        throw error;
+    }
 }
