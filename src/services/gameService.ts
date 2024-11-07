@@ -183,7 +183,7 @@ export async function processRound(roundId: number) {
             const nextRoundNumber = roundData.round_number + 1;
             const { data: nextRoundData, error: nextRoundError } = await supabase
                 .from('rounds')
-                .select('id')
+                .select('id, end_time')
                 .eq('game_id', roundData.game_id)
                 .eq('round_number', nextRoundNumber)
                 .single();
@@ -204,7 +204,7 @@ export async function processRound(roundId: number) {
 
             if (gameUpdateError) throw gameUpdateError;
 
-            const minutesLeft = Math.floor((new Date(roundData.end_time).getTime() - new Date().getTime()) / 60000);
+            const minutesLeft = Math.floor((new Date(nextRoundData.end_time).getTime() - new Date().getTime()) / 60000);
 
             await sendPlayDirectCasts(roundData.game_id, roundData.round_number, minutesLeft, winners);
         } else {
