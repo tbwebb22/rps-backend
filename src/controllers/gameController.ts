@@ -179,7 +179,6 @@ export const makePlay = async (req: Request, res: Response) => {
 // sendPlayDirectCast(gameId: number, roundId: number, recipientFid: number, minutesLeft: number)
 export const processGames = async (req: Request, res: Response) => {
     try {
-        await sendPlayDirectCast(40, 2, 347930, 30);
         await startReadyGames();
         await processActiveGames();
 
