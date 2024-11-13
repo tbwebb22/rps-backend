@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { supabase } from '../db/supabase';
-import { startReadyGames, processActiveGames, fetchUserDetails, addUserToDb, sendDirectCast, sendPlayDirectCast } from '../services/gameService';
+import { startReadyGames, processActiveGames, fetchUserDetails, addUserToDb, sendDirectCast, sendPlayDirectCast, startRegistrations } from '../services/gameService';
+import { Database } from '../db/database.types';
 
 export const createGame = async (req: Request, res: Response) => {
     const { registration_start_date, game_start_date, max_rounds, sponsor_id, round_length_minutes } = req.body;
@@ -15,7 +16,8 @@ export const createGame = async (req: Request, res: Response) => {
                 completed: false,
                 max_rounds,
                 sponsor_id,
-                round_length_minutes
+                round_length_minutes,
+                state: 'created' as Database["public"]["Enums"]["game_state"]
             }])
             .select();
 
@@ -176,9 +178,10 @@ export const makePlay = async (req: Request, res: Response) => {
         res.status(500).json({ message: 'An error occurred while making a play', error: (err as Error).message });
     }
 };
-// sendPlayDirectCast(gameId: number, roundId: number, recipientFid: number, minutesLeft: number)
+
 export const processGames = async (req: Request, res: Response) => {
     try {
+        await startRegistrations();
         await startReadyGames();
         await processActiveGames();
 

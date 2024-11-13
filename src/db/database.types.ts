@@ -44,6 +44,7 @@ export type Database = {
           registration_start_date: string
           round_length_minutes: number
           sponsor_id: number | null
+          state: Database["public"]["Enums"]["game_state"]
           winner_id: number | null
           winner_reward: number | null
         }
@@ -56,6 +57,7 @@ export type Database = {
           registration_start_date: string
           round_length_minutes: number
           sponsor_id?: number | null
+          state?: Database["public"]["Enums"]["game_state"]
           winner_id?: number | null
           winner_reward?: number | null
         }
@@ -68,6 +70,7 @@ export type Database = {
           registration_start_date?: string
           round_length_minutes?: number
           sponsor_id?: number | null
+          state?: Database["public"]["Enums"]["game_state"]
           winner_id?: number | null
           winner_reward?: number | null
         }
@@ -250,7 +253,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      game_state: "created" | "registering" | "active" | "completed"
     }
     CompositeTypes: {
       [_ in never]: never
