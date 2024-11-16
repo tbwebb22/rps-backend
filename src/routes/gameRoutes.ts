@@ -1,5 +1,5 @@
 import express from 'express';
-import { createGame, registerForGame, makePlay, processGames } from '../controllers/gameController';
+import { createGame, registerForGame, makePlay, processGames, test } from '../controllers/gameController';
 import { getGameStatus } from '../services/gameService';
 
 const router = express.Router();
@@ -12,6 +12,7 @@ router.post('/create', asyncHandler(createGame));
 router.post('/register', asyncHandler(registerForGame));
 router.post('/play', asyncHandler(makePlay));
 router.post('/process', asyncHandler(processGames));
+router.post('/test', asyncHandler(test));
 router.get('/:gameId/status/:userId', async (req, res) => {
   const { gameId, userId } = req.params;
 

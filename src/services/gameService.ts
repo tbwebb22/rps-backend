@@ -264,27 +264,65 @@ export async function getMatchWinner(
 ) {
     let winnerId;
 
-    if (player2_move === null || player2_id === null) {
+    if (player1_id === null) {
+        throw new Error(`Invalid match ${id}`);
+    }
+
+    if (player2_id === null) {
         winnerId = player1_id;
-    } else if (player1_move === null || player1_id === null) {
+    } else if (player1_move === player2_move) {
+        // handle tiebreaker
+        winnerId = await getTieWinner(player1_id, player2_id);
+    } else if (player1_move === null) {
+        // player 1 didn't make a move
         winnerId = player2_id;
+    } else if (player2_move === null) {
+        // player 2 didn't make a move
+        winnerId = player1_id;
     } else {
-        if (player1_move === player2_move) {
-            winnerId = player1_id;  // Player 1 wins ties
-        } else if ((player1_move === 0 && player2_move === 2) ||  // Rock beats Scissors
-            (player1_move === 1 && player2_move === 0) ||  // Paper beats Rock
-            (player1_move === 2 && player2_move === 1)) {  // Scissors beats Paper
+        // players made differing moves
+        if ((player1_move === 0 && player2_move === 2) ||  // Rock beats Slizards
+            (player1_move === 1 && player2_move === 0) ||  // Pepe beats Rock
+            (player1_move === 2 && player2_move === 1)) {  // Slizards beats Pepe
             winnerId = player1_id;
         } else {
             winnerId = player2_id;
         }
     }
 
+    // if (player2_move === null || player2_id === null) {
+    //     winnerId = player1_id;
+    // } else if (player1_move === null || player1_id === null) {
+    //     winnerId = player2_id;
+    // } else {
+    //     if (player1_move === player2_move) {
+    //         winnerId = player1_id;  // Player 1 wins ties
+    //     } else if ((player1_move === 0 && player2_move === 2) ||  // Rock beats Scissors
+    //         (player1_move === 1 && player2_move === 0) ||  // Paper beats Rock
+    //         (player1_move === 2 && player2_move === 1)) {  // Scissors beats Paper
+    //         winnerId = player1_id;
+    //     } else {
+    //         winnerId = player2_id;
+    //     }
+    // }
+
     if (!winnerId) {
         throw new Error(`Invalid match ${id}`);
     }
 
     return winnerId;
+}
+
+export async function getTieWinner(
+    player1_id: number,
+    player2_id: number,
+) {
+    const player1Balance = await fetchTokenBalance(player1_id.toString());
+    const player2Balance = await fetchTokenBalance(player2_id.toString());
+
+    console.log(`Handling tiebreaker: ${player1_id}: ${player1Balance} vs ${player2_id}: ${player2Balance}`);
+
+    return player1Balance > player2Balance ? player1_id : player2_id;
 }
 
 export async function createRoundMatches(roundId: number, playerIds: number[]) {
@@ -351,8 +389,6 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
     if (!game) {
         throw new Error(`No game data returned for id ${gameId}`);
     }
-
-
 
     // get all the matches for this game that this user is in
     const { data: userMatches, error: matchError } = await supabase
@@ -622,16 +658,38 @@ export async function sendDirectCast(recipientFid: number, idempotencyKey: strin
 function formatTimeRemaining(minutes: number): string {
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = minutes % 60;
-    
+
     if (hours === 0) {
         return `${remainingMinutes} ${remainingMinutes === 1 ? 'minute' : 'minutes'}`;
     } else if (hours === 1) {
-        return remainingMinutes === 0 
-            ? `one hour` 
-            : `one hour ${remainingMinutes} ${remainingMinutes === 1 ? 'minute' : 'minutes'}`;
+        return remainingMinutes === 0
+            ? `1 hour`
+            : `1 hour ${remainingMinutes} ${remainingMinutes === 1 ? 'minute' : 'minutes'}`;
     } else {
         return remainingMinutes === 0
             ? `${hours} hours`
             : `${hours} hours ${remainingMinutes} ${remainingMinutes === 1 ? 'minute' : 'minutes'}`;
     }
+}
+
+export async function fetchTokenBalance(fid: string) {
+    const query = `query MyQuery {
+        MoxieUserPortfolios(
+            input: {filter: {fanTokenAddress: {_eq: "0xf41f49a7cea54df54448b1c18ff429c7b332afb6"}, fid: {_eq: "${fid}"}}, blockchain: ALL}
+        ) {
+            MoxieUserPortfolio {
+            totalLockedAmount
+            totalUnlockedAmount
+            }
+        }
+    }`;
+
+    const { data, error } = await fetchQuery(query);
+
+    if (error) {
+        console.error('Error fetching user details:', error);
+        throw error;
+    }
+
+    return data.MoxieUserPortfolios.MoxieUserPortfolio[0].totalLockedAmount + data.MoxieUserPortfolios.MoxieUserPortfolio[0].totalUnlockedAmount;
 }
