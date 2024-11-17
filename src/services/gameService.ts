@@ -630,6 +630,11 @@ export async function sendPlayDirectCast(gameId: number, roundNumber: number, re
 export async function sendDirectCast(recipientFid: number, idempotencyKey: string, message: string) {
     const apiKey = process.env.DIRECT_CAST_API_KEY;
 
+    if (process.env.SEND_DIRECT_CASTS === 'false') {
+        console.log(`Skipping direct cast to ${recipientFid}: ${message}`);
+        return;
+    }
+
     try {
         const response = await axios.put('https://api.warpcast.com/v2/ext-send-direct-cast',
             {
