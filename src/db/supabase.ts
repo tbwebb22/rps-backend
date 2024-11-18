@@ -14,7 +14,7 @@ if (process.env.NODE_ENV === 'development') {
   supabaseUrl = process.env.LOCAL_SUPABASE_URL;
   supabaseKey = process.env.LOCAL_SUPABASE_KEY;
 } else if (process.env.NODE_ENV === 'production') {
-  if (!supabaseUrl || !supabaseKey) {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
     throw new Error('Missing Supabase URL or Key')
   }
   supabaseUrl = process.env.SUPABASE_URL;
