@@ -1,7 +1,12 @@
 import { Request, Response } from 'express';
 import { supabase } from '../db/supabase';
-import { startReadyGames, processActiveGames, fetchUserDetails, addUserToDb, sendDirectCast, sendPlayDirectCast, startRegistrations } from '../services/gameService';
+import { startReadyGames, processActiveGames, addUserToDb, startRegistrations, fetchTokenBalance } from '../services/gameService';
 import { Database } from '../db/database.types';
+
+export const test = async (req: Request, res: Response) => {
+    await fetchTokenBalance("347930");
+    res.status(200).send({ message: 'Test successful' });
+}
 
 export const createGame = async (req: Request, res: Response) => {
     const { registration_start_date, game_start_date, max_rounds, sponsor_id, round_length_minutes } = req.body;
@@ -95,6 +100,8 @@ export const registerForGame = async (req: Request, res: Response) => {
             return res.status(400).send('Game is already full');
         }
 
+        const ftBalance = await fetchTokenBalance(fid);
+
         // Insert user registration
         const { error: registrationError } = await supabase
             .from('user_registration')
@@ -102,6 +109,7 @@ export const registerForGame = async (req: Request, res: Response) => {
                 game_id: gameId,
                 user_id: fid,
                 registered_at: new Date().toISOString(),
+                token_balance: ftBalance,
                 force: false
             }])
             .select();
