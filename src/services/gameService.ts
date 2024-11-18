@@ -696,5 +696,7 @@ export async function fetchTokenBalance(fid: string) {
         throw error;
     }
 
+    if(!data || !data.MoxieUserPortfolios || !data.MoxieUserPortfolios.MoxieUserPortfolio) return 0;
+
     return data.MoxieUserPortfolios.MoxieUserPortfolio[0].totalLockedAmount + data.MoxieUserPortfolios.MoxieUserPortfolio[0].totalUnlockedAmount;
 }
