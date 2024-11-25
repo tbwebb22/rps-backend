@@ -119,10 +119,13 @@ export async function startGame(gameId: number) {
             throw matchError;
         }
 
-        // Update the game to set current_round to 1
+        // Update the game in DB to set current round and state to "active"
         const { error: updateGameError } = await supabase
             .from('games')
-            .update({ current_round_id: roundOneId })
+            .update({ 
+                current_round_id: roundOneId,
+                state: 'active'
+            })
             .eq('id', gameId);
 
         if (updateGameError) throw updateGameError;
@@ -228,7 +231,8 @@ export async function processRound(roundId: number) {
                 .from('games')
                 .update({
                     completed: true,
-                    winner_id: winners[0]  // Assuming winners[0] contains the ID of the final winner
+                    winner_id: winners[0],  // Assuming winners[0] contains the ID of the final winner
+                    state: 'completed'
                 })
                 .eq('id', roundData.game_id);
 
@@ -289,22 +293,6 @@ export async function getMatchWinner(
             winnerId = player2_id;
         }
     }
-
-    // if (player2_move === null || player2_id === null) {
-    //     winnerId = player1_id;
-    // } else if (player1_move === null || player1_id === null) {
-    //     winnerId = player2_id;
-    // } else {
-    //     if (player1_move === player2_move) {
-    //         winnerId = player1_id;  // Player 1 wins ties
-    //     } else if ((player1_move === 0 && player2_move === 2) ||  // Rock beats Scissors
-    //         (player1_move === 1 && player2_move === 0) ||  // Paper beats Rock
-    //         (player1_move === 2 && player2_move === 1)) {  // Scissors beats Paper
-    //         winnerId = player1_id;
-    //     } else {
-    //         winnerId = player2_id;
-    //     }
-    // }
 
     if (!winnerId) {
         throw new Error(`Invalid match ${id}`);
