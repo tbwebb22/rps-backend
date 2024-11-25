@@ -4,12 +4,24 @@ import gameRoutes from './routes/gameRoutes';
 import dotenv from 'dotenv';
 import { init } from "@airstack/node";
 import { authenticateApiKey } from './middleware/auth';
+import cron from 'node-cron';
+import { _processGames } from './services/gameService';
 
 dotenv.config();
 init(process.env.AIRSTACK_API_KEY || "");
 
 const app: Express = express();
 app.use(bodyParser.json());
+
+// Run at 30 seconds past every 5th minute
+cron.schedule('30 */5 * * * *', async () => {
+    try {
+        await _processGames();
+        console.log('Cron job:Processing games at:', new Date().toISOString());
+    } catch (error) {
+        console.error('Cron job failed:', error);
+    }
+});
 
 app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.method === 'POST' || req.method === 'GET') {

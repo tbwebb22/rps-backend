@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../db/supabase';
-import { startReadyGames, processActiveGames, addUserToDb, startRegistrations, fetchTokenBalance } from '../services/gameService';
+import { startReadyGames, processActiveGames, addUserToDb, startRegistrations, fetchTokenBalance, _processGames } from '../services/gameService';
 import { Database } from '../db/database.types';
 
 export const test = async (req: Request, res: Response) => {
@@ -189,9 +189,7 @@ export const makePlay = async (req: Request, res: Response) => {
 
 export const processGames = async (req: Request, res: Response) => {
     try {
-        await startRegistrations();
-        await startReadyGames();
-        await processActiveGames();
+        await _processGames();
 
         res.status(200).send({ message: 'Processing completed' });
     } catch (error) {
@@ -199,3 +197,4 @@ export const processGames = async (req: Request, res: Response) => {
         res.status(500).send({ message: 'Error processing games', error });
     }
 };
+

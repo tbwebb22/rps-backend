@@ -3,6 +3,12 @@ import { GameData } from '../types/types';
 import { fetchQuery } from "@airstack/node";
 import axios from 'axios';
 
+export const _processGames = async () => {
+    await startRegistrations();
+    await startReadyGames();
+    await processActiveGames();
+}
+
 export async function startRegistrations() {
     const { data: gamesToStartRegistration, error: gamesToStartRegistrationError } = await supabase
         .from('games')
