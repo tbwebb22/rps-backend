@@ -45,6 +45,14 @@ export async function generateSVG() {
         await new Promise(resolve => setTimeout(resolve, 10000));
 
         mkdirSync('./brackets', { recursive: true });
+        // Set higher device scale factor for better quality (2 = 2x, 3 = 3x, 4 = 4x resolution)
+        const viewport = page.viewport() || { width: 1920, height: 1080 };
+        await page.setViewport({
+            width: viewport.width,
+            height: viewport.height,
+            deviceScaleFactor: 2
+        });
+
         await page.screenshot({
             path: './brackets/bracket.png',
             fullPage: true,
