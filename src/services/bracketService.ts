@@ -1,31 +1,29 @@
-import puppeteer, { BoundingBox } from 'puppeteer';
-import sharp from 'sharp';
-import fs from 'fs';
-import path from 'path';
+import dotenv from 'dotenv';
+import puppeteer from 'puppeteer';
 import { mkdirSync } from 'fs';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
-export async function generateSVG() {
+dotenv.config();
+
+export async function generateBracket(gameId: string, round: string) {
     try {
         console.log('Generating SVG...');
         const browser = await puppeteer.launch({
-            headless: false,
+            headless: true,
             args: ['--disable-web-security', '--no-sandbox']
         });
         const page = await browser.newPage();
         
-        console.log('Navigating to page...');
-        await page.goto('https://rps-bracketer.vercel.app/bracket/6', {
+        await page.goto(`https://rps-bracketer.vercel.app/bracket/${gameId}`, {
             waitUntil: 'networkidle0'
         });
         
-        console.log('Waiting for SVG element...');
         const svgElement = await page.waitForSelector('#bracketSVG');
         if (!svgElement) throw new Error('SVG element not found');
         
         // Wait for network to be completely idle
         await page.waitForNetworkIdle();
         
-        console.log('Waiting for all images to load');
         await page.evaluate(() => {
             const images = document.querySelectorAll('image');
             return Promise.all(Array.from(images).map((img) => {
@@ -41,8 +39,7 @@ export async function generateSVG() {
             }));
         });
 
-        console.log('Giving the page a moment to render everything');
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        await new Promise(resolve => setTimeout(resolve, 5000));
 
         mkdirSync('./brackets', { recursive: true });
         // Set higher device scale factor for better quality (2 = 2x, 3 = 3x, 4 = 4x resolution)
@@ -53,14 +50,38 @@ export async function generateSVG() {
             deviceScaleFactor: 2
         });
 
-        await page.screenshot({
-            path: './brackets/bracket.png',
+        const screenshotBuffer = await page.screenshot({
             fullPage: true,
             omitBackground: true
         });
 
+        // Initialize S3 client with Cloudflare R2 endpoint
+        const s3Client = new S3Client({
+            region: 'auto',
+            endpoint: `https://${process.env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+            credentials: {
+                accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+                secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!
+            }
+        });
+
+        // Upload to S3
+        await s3Client.send(new PutObjectCommand({
+            Bucket: process.env.R2_BUCKET_NAME!,
+            Key: `bracket-${gameId}-${round}.png`,
+            Body: screenshotBuffer,
+            ContentType: 'image/png'
+        }));
+
+        const publicUrl = `${process.env.R2_BUCKET_PUBLIC_URL_PREFIX}bracket-${gameId}-${round}.png`;
+
+        console.log('Bracket generated and uploaded to:', publicUrl);
+
         await browser.close();
+
+        return publicUrl;
     } catch (error) {
-        console.error('Error generating SVG:', error);
+        console.error('Error generating or uploading image:', error);
+        throw error;
     }
 }

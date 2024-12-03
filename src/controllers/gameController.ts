@@ -1,10 +1,11 @@
 import { Request, Response } from 'express';
 import { supabase } from '../db/supabase';
-import { startReadyGames, processActiveGames, addUserToDb, startRegistrations, fetchTokenBalance, _processGames } from '../services/gameService';
+import { addUserToDb, fetchTokenBalance, _processGames } from '../services/gameService';
 import { Database } from '../db/database.types';
+import { generateBracket } from '../services/bracketService';
 
 export const test = async (req: Request, res: Response) => {
-    await fetchTokenBalance("347930");
+    await generateBracket("10", "5");
     res.status(200).send({ message: 'Test successful' });
 }
 
