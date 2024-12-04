@@ -6,6 +6,7 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 dotenv.config();
 
 export async function generateBracket(gameId: string, round: string) {
+    console.log(`generating bracket, game: ${gameId}, round: ${round}`);
     try {
         console.log('Generating SVG...');
         const browser = await puppeteer.launch({
@@ -47,7 +48,7 @@ export async function generateBracket(gameId: string, round: string) {
         await page.setViewport({
             width: viewport.width,
             height: viewport.height,
-            deviceScaleFactor: 2
+            deviceScaleFactor: 4
         });
 
         const screenshotBuffer = await page.screenshot({

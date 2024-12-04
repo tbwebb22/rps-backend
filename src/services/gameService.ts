@@ -2,6 +2,8 @@ import { supabase } from '../db/supabase';
 import { GameData } from '../types/types';
 import { fetchQuery } from "@airstack/node";
 import axios from 'axios';
+import { generateBracket } from './bracketService';
+import { publishNewRoundCast } from './publishCastService';
 
 export const _processGames = async () => {
     await startRegistrations();
@@ -136,7 +138,16 @@ export async function startGame(gameId: number) {
 
         if (updateGameError) throw updateGameError;
 
-        await sendPlayDirectCasts(gameId, 1, roundLengthMinutes, players.map(p => p.user_id));
+        console.log(`waiting 5 seconds before generating bracket`);
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+
+        const bracketImageUrl = await generateBracket(gameId.toString(), "1");
+
+        console.log(`waiting 5 seconds before publishing new round cast`);
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+
+        const castHash = await publishNewRoundCast(gameId, 1, bracketImageUrl);
+        // await sendPlayDirectCasts(gameId, 1, roundLengthMinutes, players.map(p => p.user_id));
 
         return null;  // Success
     } catch (error) {

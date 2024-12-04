@@ -3,12 +3,12 @@ import { supabase } from '../db/supabase';
 import { addUserToDb, fetchTokenBalance, _processGames } from '../services/gameService';
 import { Database } from '../db/database.types';
 import { generateBracket } from '../services/bracketService';
-import { publishCast } from '../services/publishCastService';
+import { publishNewRoundCast } from '../services/publishCastService';
 
 export const test = async (req: Request, res: Response) => {
     // await generateBracket("10", "5");
 
-    await publishCast("testing... testing...");
+    // await publishNewRoundCast(10, 5);
     res.status(200).send({ message: 'Test successful' });
 }
 
