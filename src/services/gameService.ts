@@ -143,8 +143,6 @@ export async function startGame(gameId: number) {
         const castLink = `https://warpcast.com/rps-referee/${castHash}`;
         await sendNewRoundDirectCasts(players.map(p => p.user_id), castLink);
 
-        // await sendPlayDirectCasts(gameId, 1, roundLengthMinutes, players.map(p => p.user_id));
-
         return null;  // Success
     } catch (error) {
         return error;
@@ -275,7 +273,7 @@ export async function processRound(roundId: number) {
             console.log(`waiting 5 seconds before publishing new round cast`);
             await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
     
-            const castHash = await publishFinalCast(roundData.game_id, winnerDetails.Socials.Social[0].profileName);
+            const castHash = await publishFinalCast(roundData.game_id, winnerDetails.Socials.Social[0].profileName, bracketImageUrl);
 
             console.log(`waiting 5 seconds before sending play direct casts`);
             await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
@@ -405,6 +403,7 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
 
     const currentTime = new Date().toISOString();
 
+    // TODO: update this to use DB state
     const getGameState = (game: any, currentTime: string) => {
         const roundNumber = getRoundNumber(game);
         if (roundNumber === null) {

@@ -50,7 +50,7 @@ export async function publishNewRoundCast(gameId: number, round: number, bracket
     return response.cast.hash;
 }
 
-export async function publishFinalCast(gameId: number, winnerUsername: string) {
+export async function publishFinalCast(gameId: number, winnerUsername: string, bracketImageUrl: string) {
     console.log(`publishing game final cast, game: ${gameId}`);
     const response = await neynar.publishCast({
         signerUuid: process.env.SIGNER_UUID!,
@@ -64,7 +64,7 @@ Congrats @${winnerUsername} 🎉
         channelId: 'rockpepeslizards',
         embeds: [
             {
-                url: `https://pub-00e77a8a96704aa3b978249c7646bf28.r2.dev/bracket-${gameId}-F.png`
+                url: bracketImageUrl
             }
         ]
     });
