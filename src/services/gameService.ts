@@ -1,22 +1,18 @@
 import { supabase } from '../db/supabase';
 import { GameData } from '../types/types';
-import { fetchQuery } from "@airstack/node";
-import axios from 'axios';
+import { generateBracket } from './bracketService';
+import { publishFinalCast, publishNewRoundCast } from './publishCastService';
+import { sendFinalDirectCasts, sendNewRoundDirectCasts, sendRegistrationDirectCasts } from './directCastService';
+import { fetchUserDetails } from './airstackService';
+import { getMatchWinner } from './gameHelperService';
 
-export async function startRegistrations() {
-    const { data: gamesToStartRegistration, error: gamesToStartRegistrationError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('state', 'created')
-        .lte('registration_start_date', new Date().toISOString());
-
-    if (gamesToStartRegistrationError) {
-        console.error("Error fetching games to start registration:", gamesToStartRegistrationError);
-        throw gamesToStartRegistrationError;
-    }
-
-    await Promise.all(gamesToStartRegistration.map(game => startRegistration(game.id, game.game_start_date)));
+export const _processGames = async () => {
+    // await startRegistrations();
+    await startReadyGames();
+    await processActiveGames();
 }
+
+
 
 export async function startReadyGames() {
     const { data: gamesToStart, error: gamesToStartError } = await supabase
@@ -119,15 +115,33 @@ export async function startGame(gameId: number) {
             throw matchError;
         }
 
-        // Update the game to set current_round to 1
+        // Update the game in DB to set current round and state to "active"
         const { error: updateGameError } = await supabase
             .from('games')
-            .update({ current_round_id: roundOneId })
+            .update({ 
+                current_round_id: roundOneId,
+                state: 'active'
+            })
             .eq('id', gameId);
 
         if (updateGameError) throw updateGameError;
 
-        await sendPlayDirectCasts(gameId, 1, roundLengthMinutes, players.map(p => p.user_id));
+        console.log(`waiting 5 seconds before generating bracket`);
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+
+        const bracketImageUrl = await generateBracket(gameId.toString(), "1");
+
+        console.log(`waiting 5 seconds before publishing new round cast`);
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+
+        // TODO: this function should be publish gameStartedCast
+        const castHash = await publishNewRoundCast(gameId, 1, bracketImageUrl);
+
+        console.log(`waiting 5 seconds before sending play direct casts`);
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+
+        const castLink = `https://warpcast.com/rps-referee/${castHash}`;
+        await sendNewRoundDirectCasts(players.map(p => p.user_id), castLink);
 
         return null;  // Success
     } catch (error) {
@@ -221,16 +235,52 @@ export async function processRound(roundId: number) {
 
             const minutesLeft = Math.floor((new Date(nextRoundData.end_time).getTime() - new Date().getTime()) / 60000);
 
-            await sendPlayDirectCasts(roundData.game_id, roundData.round_number + 1, minutesLeft, winners);
+            // await sendPlayDirectCasts(roundData.game_id, roundData.round_number + 1, minutesLeft, winners);
+
+            console.log(`waiting 5 seconds before generating bracket`);
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+    
+            const bracketImageUrl = await generateBracket(roundData.game_id.toString(), nextRoundNumber.toString());
+    
+            console.log(`waiting 5 seconds before publishing new round cast`);
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+    
+            const castHash = await publishNewRoundCast(roundData.game_id, nextRoundNumber, bracketImageUrl);
+
+            console.log(`waiting 5 seconds before sending play direct casts`);
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+
+            const castLink = `https://warpcast.com/rps-referee/${castHash}`;
+            await sendNewRoundDirectCasts(winners, castLink);
         } else {
             // Mark the game as completed and set the winner in the database
             const { error: updateGameError } = await supabase
                 .from('games')
                 .update({
                     completed: true,
-                    winner_id: winners[0]  // Assuming winners[0] contains the ID of the final winner
+                    winner_id: winners[0],  // Assuming winners[0] contains the ID of the final winner
+                    state: 'completed'
                 })
                 .eq('id', roundData.game_id);
+
+            const winnerDetails = await fetchUserDetails(winners[0]);
+
+            console.log(`waiting 5 seconds before generating bracket`);
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+
+            const bracketImageUrl = await generateBracket(roundData.game_id.toString(), "F");
+    
+            console.log(`waiting 5 seconds before publishing new round cast`);
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+    
+            const castHash = await publishFinalCast(roundData.game_id, winnerDetails.Socials.Social[0].profileName, bracketImageUrl);
+
+            console.log(`waiting 5 seconds before sending play direct casts`);
+            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+
+            const castLink = `https://warpcast.com/rps-referee/${castHash}`;
+            // TODO: currently only sending this to the winner
+            await sendFinalDirectCasts(winners, castLink);
 
             if (updateGameError) {
                 throw updateGameError;
@@ -253,76 +303,6 @@ export async function getActiveGames() {
     if (activeGamesError) throw activeGamesError;
 
     return activeGames;
-}
-
-export async function getMatchWinner(
-    id: number,
-    player1_id: number | null,
-    player1_move: number | null,
-    player2_id: number | null,
-    player2_move: number | null,
-) {
-    let winnerId;
-
-    if (player1_id === null) {
-        throw new Error(`Invalid match ${id}`);
-    }
-
-    if (player2_id === null) {
-        winnerId = player1_id;
-    } else if (player1_move === player2_move) {
-        // handle tiebreaker
-        winnerId = await getTieWinner(player1_id, player2_id);
-    } else if (player1_move === null) {
-        // player 1 didn't make a move
-        winnerId = player2_id;
-    } else if (player2_move === null) {
-        // player 2 didn't make a move
-        winnerId = player1_id;
-    } else {
-        // players made differing moves
-        if ((player1_move === 0 && player2_move === 2) ||  // Rock beats Slizards
-            (player1_move === 1 && player2_move === 0) ||  // Pepe beats Rock
-            (player1_move === 2 && player2_move === 1)) {  // Slizards beats Pepe
-            winnerId = player1_id;
-        } else {
-            winnerId = player2_id;
-        }
-    }
-
-    // if (player2_move === null || player2_id === null) {
-    //     winnerId = player1_id;
-    // } else if (player1_move === null || player1_id === null) {
-    //     winnerId = player2_id;
-    // } else {
-    //     if (player1_move === player2_move) {
-    //         winnerId = player1_id;  // Player 1 wins ties
-    //     } else if ((player1_move === 0 && player2_move === 2) ||  // Rock beats Scissors
-    //         (player1_move === 1 && player2_move === 0) ||  // Paper beats Rock
-    //         (player1_move === 2 && player2_move === 1)) {  // Scissors beats Paper
-    //         winnerId = player1_id;
-    //     } else {
-    //         winnerId = player2_id;
-    //     }
-    // }
-
-    if (!winnerId) {
-        throw new Error(`Invalid match ${id}`);
-    }
-
-    return winnerId;
-}
-
-export async function getTieWinner(
-    player1_id: number,
-    player2_id: number,
-) {
-    const player1Balance = await fetchTokenBalance(player1_id.toString());
-    const player2Balance = await fetchTokenBalance(player2_id.toString());
-
-    console.log(`Handling tiebreaker: ${player1_id}: ${player1Balance} vs ${player2_id}: ${player2Balance}`);
-
-    return player1Balance > player2Balance ? player1_id : player2_id;
 }
 
 export async function createRoundMatches(roundId: number, playerIds: number[]) {
@@ -423,6 +403,7 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
 
     const currentTime = new Date().toISOString();
 
+    // TODO: update this to use DB state
     const getGameState = (game: any, currentTime: string) => {
         const roundNumber = getRoundNumber(game);
         if (roundNumber === null) {
@@ -525,32 +506,6 @@ export async function addUserToDb(fid: number) {
     return newUser;
 }
 
-export async function fetchUserDetails(fid: number) {
-    const query = `query MyQuery {
-        Socials(
-            input: {
-            filter: { dappName: { _eq: farcaster }, identity: { _eq: "fc_fid:${fid}" } }
-            blockchain: ethereum
-            }
-        ) {
-            Social {
-            profileDisplayName
-            profileImage
-            profileName
-            }
-        }
-    }`;
-
-    const { data, error } = await fetchQuery(query);
-
-    if (error) {
-        console.error('Error fetching user details:', error);
-        throw error;
-    }
-
-    return data;
-}
-
 export async function getAllUserIds() {
     const { data: users, error } = await supabase
         .from('users')
@@ -564,139 +519,35 @@ export async function getAllUserIds() {
     return users.map(user => user.id);
 }
 
-export async function startRegistration(gameId: number, gameStartTime: string) {
-    console.log(`Starting registration for game ${gameId}`);
+// export async function startRegistrations() {
+//     const { data: gamesCreated, error: gamesCreatedError } = await supabase
+//         .from('games')
+//         .select('*')
+//         .eq('state', 'created');
 
-    const { error: updateError } = await supabase
-        .from('games')
-        .update({ state: 'registering' })
-        .eq('id', gameId);
+//     if (gamesCreatedError) {
+//         console.error("Error fetching games to start registration:", gamesCreatedError);
+//         throw gamesCreatedError;
+//     }
 
-    if (updateError) {
-        console.error("Error updating games to registering state:", updateError);
-        throw updateError;
-    }
+//     await Promise.all(gamesCreated.map(game => startRegistration(game.id, game.game_start_date)));
+// }
 
-    const fids = await getAllUserIds();
+// export async function startRegistration(gameId: number, gameStartTime: string) {
+//     console.log(`Starting registration for game ${gameId}`);
 
-    await sendRegistrationDirectCasts(gameId, gameStartTime, fids);
-}
+//     const { error: updateError } = await supabase
+//         .from('games')
+//         .update({ state: 'registering' })
+//         .eq('id', gameId);
 
-export async function sendRegistrationDirectCasts(gameId: number, gameStartTime: string, fids: number[]) {
-    const results = await Promise.allSettled(
-        fids.map(fid => sendRegistrationDirectCast(gameId, gameStartTime, fid))
-    );
+//     if (updateError) {
+//         console.error("Error updating games to registering state:", updateError);
+//         throw updateError;
+//     }
 
-    // Log failures but don't stop execution
-    const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
-    if (failures.length > 0) {
-        console.error(`Failed to send ${failures.length} direct casts:`,
-            failures.map(f => f.reason));
-    }
-}
+//     const fids = await getAllUserIds();
 
-export async function sendRegistrationDirectCast(gameId: number, gameStartTime: string, recipientFid: number) {
-    const idempotencyKey = `game_${gameId}`
-    const minutesLeft = Math.floor((new Date(gameStartTime).getTime() - new Date().getTime()) / 60000);
-    const message = `Tournament #${gameId} is starting in ${formatTimeRemaining(minutesLeft)}. Register in the frame below!`;
-    const frameUrl = `https://rps-frame.vercel.app/api/game/${gameId}`;
-    await sendDirectCast(recipientFid, idempotencyKey, message);
-    await sendDirectCast(recipientFid, idempotencyKey, frameUrl);
-}
-
-export async function sendPlayDirectCasts(gameId: number, roundNumber: number, minutesLeft: number, fids: number[]) {
-    const results = await Promise.allSettled(
-        fids.map(fid => sendPlayDirectCast(gameId, roundNumber, fid, minutesLeft))
-    );
-
-    // Log failures but don't stop execution
-    const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
-    if (failures.length > 0) {
-        console.error(`Failed to send ${failures.length} direct casts:`,
-            failures.map(f => f.reason));
-    }
-}
-
-export async function sendPlayDirectCast(gameId: number, roundNumber: number, recipientFid: number, minutesLeft: number) {
-    const idempotencyKey = `game_${gameId}_round_${roundNumber}`
-    // const idempotencyKey = Math.random().toString(36).substring(2, 15);
-    // const idempotencyKey = "ed3d9b95-5eed-475f-9c7d-58bdc3b9ac00";
-    const message = `Round ${roundNumber} has begun! You have ${minutesLeft} minutes to select Rock, Pepe, or Slizards!`;
-    const frameUrl = `https://rps-frame.vercel.app/api/game/${gameId}`;
-    await sendDirectCast(recipientFid, idempotencyKey, message);
-    await sendDirectCast(recipientFid, idempotencyKey, frameUrl);
-}
-
-export async function sendDirectCast(recipientFid: number, idempotencyKey: string, message: string) {
-    const apiKey = process.env.DIRECT_CAST_API_KEY;
-
-    if (process.env.SEND_DIRECT_CASTS === 'false') {
-        console.log(`Skipping direct cast to ${recipientFid}: ${message}`);
-        return;
-    }
-
-    try {
-        const response = await axios.put('https://api.warpcast.com/v2/ext-send-direct-cast',
-            {
-                recipientFid,
-                message,
-                idempotencyKey
-            },
-            {
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json'
-                }
-            }
-        );
-
-        console.log(`DC sent to ${recipientFid}:: ${message}`);
-        return response.data;
-    } catch (error) {
-        if (axios.isAxiosError(error)) {
-            throw new Error(`Failed to send direct cast: ${error.response?.data || error.message}`);
-        }
-        throw error;
-    }
-}
-
-function formatTimeRemaining(minutes: number): string {
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-
-    if (hours === 0) {
-        return `${remainingMinutes} ${remainingMinutes === 1 ? 'minute' : 'minutes'}`;
-    } else if (hours === 1) {
-        return remainingMinutes === 0
-            ? `1 hour`
-            : `1 hour ${remainingMinutes} ${remainingMinutes === 1 ? 'minute' : 'minutes'}`;
-    } else {
-        return remainingMinutes === 0
-            ? `${hours} hours`
-            : `${hours} hours ${remainingMinutes} ${remainingMinutes === 1 ? 'minute' : 'minutes'}`;
-    }
-}
-
-export async function fetchTokenBalance(fid: string) {
-    const query = `query MyQuery {
-        MoxieUserPortfolios(
-            input: {filter: {fanTokenAddress: {_eq: "0xf41f49a7cea54df54448b1c18ff429c7b332afb6"}, fid: {_eq: "${fid}"}}, blockchain: ALL}
-        ) {
-            MoxieUserPortfolio {
-            totalLockedAmount
-            totalUnlockedAmount
-            }
-        }
-    }`;
-
-    const { data, error } = await fetchQuery(query);
-
-    if (error) {
-        console.error('Error fetching user details:', error);
-        throw error;
-    }
-
-    if(!data || !data.MoxieUserPortfolios || !data.MoxieUserPortfolios.MoxieUserPortfolio) return 0;
-
-    return data.MoxieUserPortfolios.MoxieUserPortfolio[0].totalLockedAmount + data.MoxieUserPortfolios.MoxieUserPortfolio[0].totalUnlockedAmount;
-}
+//     // TODO: this needs to be updated
+//     await sendRegistrationDirectCasts(gameId, gameStartTime, fids);
+// }
