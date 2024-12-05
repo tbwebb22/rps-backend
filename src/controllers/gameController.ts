@@ -1,32 +1,35 @@
 import { Request, Response } from 'express';
 import { supabase } from '../db/supabase';
-import { addUserToDb, fetchTokenBalance, _processGames } from '../services/gameService';
+import { addUserToDb, _processGames, getAllUserIds } from '../services/gameService';
+import { fetchTokenBalance } from '../services/airstackService';
 import { Database } from '../db/database.types';
-import { generateBracket } from '../services/bracketService';
-import { publishNewRoundCast } from '../services/publishCastService';
+import { sendNewGameDirectCasts } from '../services/directCastService';
+import { publishNewGameCast } from '../services/publishCastService';
 
 export const test = async (req: Request, res: Response) => {
     // await generateBracket("10", "5");
-
     // await publishNewRoundCast(10, 5);
     res.status(200).send({ message: 'Test successful' });
 }
 
 export const createGame = async (req: Request, res: Response) => {
-    const { registration_start_date, game_start_date, max_rounds, sponsor_id, round_length_minutes } = req.body;
+    const { max_rounds, sponsor_id, round_length_minutes } = req.body;
+
+    const registrationStartDate = new Date(Date.now()).toISOString();
+    const gameStartDate = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
     try {
         const { data, error } = await supabase
             .from('games')
             .insert([{
-                registration_start_date,
-                game_start_date,
+                registration_start_date: registrationStartDate,
+                game_start_date: gameStartDate,
                 current_round_id: null,
                 completed: false,
                 max_rounds,
                 sponsor_id,
                 round_length_minutes,
-                state: 'created' as Database["public"]["Enums"]["game_state"]
+                state: 'registering' as Database["public"]["Enums"]["game_state"]
             }])
             .select();
 
@@ -34,6 +37,17 @@ export const createGame = async (req: Request, res: Response) => {
             console.error('Error details:', error);
             return res.status(500).json({ message: 'Error creating game', error });
         }
+
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+
+        const fids = await getAllUserIds();
+
+        const castHash = await publishNewGameCast(data[0].id);
+        const castLink = `https://warpcast.com/rps-referee/${castHash}`;
+
+        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+        
+        await sendNewGameDirectCasts(fids, castLink);
 
         res.status(201).send({ message: 'Game created', gameId: data[0].id });
     } catch (err) {
