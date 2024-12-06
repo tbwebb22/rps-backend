@@ -11,8 +11,18 @@ export async function publishNewGameCast(gameId: number) {
         text: 
 `Tournament #${gameId} has been created!
 
-Register in the frame below
-🗿🐸🦎
+Easy to play (it's just rock paper scissors), impossible to master (it's all luck)
+
+🗿 Rock beats Slizards 🦎
+🐸 Pepe beats Rock 🗿
+🦎 Slizards beats Pepe 🐸
+
+If you want to play:
+1) Follow @rps-referee - this bot will send you a direct cast with the frame when you need to make a play
+2) Register in the frame below - first 32 registrants get to play
+3) All players get placed into a bracket and matched up against opponents in 15 minute matches until we have a winner
+
+May the odds be ever in your favor
 `,
         channelId: 'rockpepeslizards',
         embeds: [
