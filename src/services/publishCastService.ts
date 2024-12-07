@@ -36,7 +36,7 @@ May the odds be ever in your favor
     return response.cast.hash;
 }
 
-export async function publishNewRoundCast(gameId: number, round: number, bracketImageUrl: string) {
+export async function publishNewRoundCast(gameId: number, round: number) {
     console.log(`publishing new round cast, game: ${gameId}, round: ${round}`);
     const response = await neynar.publishCast({
         signerUuid: process.env.SIGNER_UUID!,
@@ -48,9 +48,6 @@ export async function publishNewRoundCast(gameId: number, round: number, bracket
         channelId: 'rockpepeslizards',
         embeds: [
             {
-                url: bracketImageUrl
-            },
-            {
                 url: `https://rps-frame.vercel.app/api/game/${gameId}`
             }
         ]
@@ -60,7 +57,7 @@ export async function publishNewRoundCast(gameId: number, round: number, bracket
     return response.cast.hash;
 }
 
-export async function publishFinalCast(gameId: number, winnerUsername: string, bracketImageUrl: string) {
+export async function publishFinalCast(gameId: number, winnerUsername: string) {
     console.log(`publishing game final cast, game: ${gameId}`);
     const response = await neynar.publishCast({
         signerUuid: process.env.SIGNER_UUID!,
@@ -74,7 +71,7 @@ Congrats @${winnerUsername} 🎉
         channelId: 'rockpepeslizards',
         embeds: [
             {
-                url: bracketImageUrl
+                url: `https://rps-frame.vercel.app/api/game/${gameId}`
             }
         ]
     });

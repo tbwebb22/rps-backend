@@ -13,10 +13,16 @@ export const test = async (req: Request, res: Response) => {
 }
 
 export const createGame = async (req: Request, res: Response) => {
-    const { max_rounds, sponsor_id, round_length_minutes } = req.body;
+    const { minutes_to_start, max_rounds, sponsor_id, round_length_minutes } = req.body;
 
     const registrationStartDate = new Date(Date.now()).toISOString();
-    const gameStartDate = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+    // round start time is rounded to the nearest 15 minutes
+    const baseTime = new Date(Date.now() + minutes_to_start * 60 * 1000);
+    const roundedMinutes = Math.ceil(baseTime.getMinutes() / 15) * 15;
+    const gameStartDate = new Date(
+        baseTime.setMinutes(roundedMinutes, 0, 0)
+    ).toISOString();
 
     try {
         const { data, error } = await supabase
