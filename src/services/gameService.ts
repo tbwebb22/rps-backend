@@ -1,6 +1,6 @@
 import { supabase } from '../db/supabase';
 import { GameData } from '../types/types';
-import { generateBracket } from './bracketService';
+// import { generateBracket } from './bracketService';
 import { publishFinalCast, publishNewRoundCast } from './publishCastService';
 import { sendFinalDirectCasts, sendNewRoundDirectCasts, sendRegistrationDirectCasts } from './directCastService';
 import { fetchUserDetails } from './airstackService';
@@ -126,16 +126,8 @@ export async function startGame(gameId: number) {
 
         if (updateGameError) throw updateGameError;
 
-        console.log(`waiting 5 seconds before generating bracket`);
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
-
-        const bracketImageUrl = await generateBracket(gameId.toString(), "1");
-
-        console.log(`waiting 5 seconds before publishing new round cast`);
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
-
         // TODO: this function should be publish gameStartedCast
-        const castHash = await publishNewRoundCast(gameId, 1, bracketImageUrl);
+        const castHash = await publishNewRoundCast(gameId, 1);
 
         console.log(`waiting 5 seconds before sending play direct casts`);
         await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
@@ -232,20 +224,8 @@ export async function processRound(roundId: number) {
                 .eq('id', roundData.game_id);
 
             if (gameUpdateError) throw gameUpdateError;
-
-            const minutesLeft = Math.floor((new Date(nextRoundData.end_time).getTime() - new Date().getTime()) / 60000);
-
-            // await sendPlayDirectCasts(roundData.game_id, roundData.round_number + 1, minutesLeft, winners);
-
-            console.log(`waiting 5 seconds before generating bracket`);
-            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
     
-            const bracketImageUrl = await generateBracket(roundData.game_id.toString(), nextRoundNumber.toString());
-    
-            console.log(`waiting 5 seconds before publishing new round cast`);
-            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
-    
-            const castHash = await publishNewRoundCast(roundData.game_id, nextRoundNumber, bracketImageUrl);
+            const castHash = await publishNewRoundCast(roundData.game_id, nextRoundNumber);
 
             console.log(`waiting 5 seconds before sending play direct casts`);
             await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
@@ -264,16 +244,8 @@ export async function processRound(roundId: number) {
                 .eq('id', roundData.game_id);
 
             const winnerDetails = await fetchUserDetails(winners[0]);
-
-            console.log(`waiting 5 seconds before generating bracket`);
-            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
-
-            const bracketImageUrl = await generateBracket(roundData.game_id.toString(), "F");
-    
-            console.log(`waiting 5 seconds before publishing new round cast`);
-            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
-    
-            const castHash = await publishFinalCast(roundData.game_id, winnerDetails.Socials.Social[0].profileName, bracketImageUrl);
+        
+            const castHash = await publishFinalCast(roundData.game_id, winnerDetails.Socials.Social[0].profileName);
 
             console.log(`waiting 5 seconds before sending play direct casts`);
             await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
