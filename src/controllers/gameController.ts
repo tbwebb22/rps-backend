@@ -5,11 +5,20 @@ import { fetchTokenBalance } from '../services/airstackService';
 import { Database } from '../db/database.types';
 import { sendNewGameDirectCasts } from '../services/directCastService';
 import { publishNewGameCast } from '../services/publishCastService';
+import { getPage } from '../services/chromiumService';
 
 export const test = async (req: Request, res: Response) => {
-    // await generateBracket("10", "5");
-    // await publishNewRoundCast(10, 5);
-    res.status(200).send({ message: 'Test successful' });
+    try {
+        const page = await getPage();
+        await page.goto('https://example.com');
+        const title = await page.title();
+        await page.close();
+        
+        res.status(200).send({ message: 'Test successful', title });
+    } catch (error) {
+        console.error('Browser test failed:', error);
+        res.status(500).send({ message: 'Test failed', error: (error as Error).message });
+    }
 }
 
 export const createGame = async (req: Request, res: Response) => {
