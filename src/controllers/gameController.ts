@@ -15,9 +15,32 @@ export const test = async (req: Request, res: Response) => {
 export const createGame = async (req: Request, res: Response) => {
     const { minutes_to_start, max_rounds, sponsor_id, round_length_minutes } = req.body;
 
-    const registrationStartDate = new Date(Date.now()).toISOString();
+    // Check for recent games (within last 1 hour)
+    const oneHourAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const { data: recentGames, error: recentGamesError } = await supabase
+        .from('games')
+        .select('id')
+        .gte('registration_start_date', oneHourAgo)
+        .limit(1);
 
+    if (recentGamesError) {
+        return res.status(500).json({ message: 'Error checking recent games', error: recentGamesError });
+    }
+
+    if (recentGames && recentGames.length > 0) {
+        return res.status(400).json({ message: 'A game has already been created within the last hour' });
+    }
+
+    if (!minutes_to_start || !max_rounds || !sponsor_id || !round_length_minutes) {
+        return res.status(400).json({ 
+            message: 'Missing required fields', 
+            required: ['minutes_to_start', 'max_rounds', 'sponsor_id', 'round_length_minutes'] 
+        });
+    }
+
+    
     // round start time is rounded to the nearest 15 minutes
+    const registrationStartDate = new Date(Date.now()).toISOString();
     const baseTime = new Date(Date.now() + minutes_to_start * 60 * 1000);
     const roundedMinutes = Math.ceil(baseTime.getMinutes() / 15) * 15;
     const gameStartDate = new Date(
