@@ -37,7 +37,6 @@ export const createGame = async (req: Request, res: Response) => {
             required: ['minutes_to_start', 'max_rounds', 'sponsor_id', 'round_length_minutes'] 
         });
     }
-
     
     // round start time is rounded to the nearest 15 minutes
     const registrationStartDate = new Date(Date.now()).toISOString();
