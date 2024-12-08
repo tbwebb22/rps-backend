@@ -118,7 +118,7 @@ export async function startGame(gameId: number) {
         // Update the game in DB to set current round and state to "active"
         const { error: updateGameError } = await supabase
             .from('games')
-            .update({ 
+            .update({
                 current_round_id: roundOneId,
                 state: 'active'
             })
@@ -129,8 +129,7 @@ export async function startGame(gameId: number) {
         // TODO: this function should be publish gameStartedCast
         const castHash = await publishNewRoundCast(gameId, 1);
 
-        console.log(`waiting 5 seconds before sending play direct casts`);
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
 
         const castLink = `https://warpcast.com/rps-referee/${castHash}`;
         await sendNewRoundDirectCasts(players.map(p => p.user_id), castLink);
@@ -224,11 +223,11 @@ export async function processRound(roundId: number) {
                 .eq('id', roundData.game_id);
 
             if (gameUpdateError) throw gameUpdateError;
-    
+
             const castHash = await publishNewRoundCast(roundData.game_id, nextRoundNumber);
 
-            console.log(`waiting 5 seconds before sending play direct casts`);
-            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+            console.log(`waiting 1 second before sending play direct casts`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
 
             const castLink = `https://warpcast.com/rps-referee/${castHash}`;
             await sendNewRoundDirectCasts(winners, castLink);
@@ -244,11 +243,10 @@ export async function processRound(roundId: number) {
                 .eq('id', roundData.game_id);
 
             const winnerDetails = await fetchUserDetails(winners[0]);
-        
+
             const castHash = await publishFinalCast(roundData.game_id, winnerDetails.Socials.Social[0].profileName);
 
-            console.log(`waiting 5 seconds before sending play direct casts`);
-            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
 
             const castLink = `https://warpcast.com/rps-referee/${castHash}`;
             // TODO: currently only sending this to the winner
@@ -491,6 +489,39 @@ export async function getAllUserIds() {
     return users.map(user => user.id);
 }
 
+interface CreateStatusResponse {
+    canCreate: boolean;
+    waitTimeMinutes: number;
+}
+
+export async function getCreateGameStatus(): Promise<CreateStatusResponse> {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const { data: recentGames, error } = await supabase
+        .from('games')
+        .select('registration_start_date')
+        .gte('registration_start_date', twoHoursAgo)
+        .order('registration_start_date', { ascending: false })
+        .limit(1);
+
+    if (error) throw error;
+
+    if (!recentGames || recentGames.length === 0) {
+        return {
+            canCreate: true,
+            waitTimeMinutes: 0
+        };
+    }
+
+    const mostRecentGame = new Date(recentGames[0].registration_start_date);
+    const waitTimeMs = mostRecentGame.getTime() + (2 * 60 * 60 * 1000) - Date.now();
+    const waitTimeMinutes = Math.ceil(waitTimeMs / (60 * 1000));
+
+    return {
+        canCreate: waitTimeMinutes <= 0,
+        waitTimeMinutes: Math.max(0, waitTimeMinutes)
+    };
+}
+
 // export async function startRegistrations() {
 //     const { data: gamesCreated, error: gamesCreatedError } = await supabase
 //         .from('games')
@@ -523,3 +554,4 @@ export async function getAllUserIds() {
 //     // TODO: this needs to be updated
 //     await sendRegistrationDirectCasts(gameId, gameStartTime, fids);
 // }
+

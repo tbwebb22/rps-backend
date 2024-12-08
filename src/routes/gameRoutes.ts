@@ -1,6 +1,6 @@
 import express from 'express';
 import { createGame, registerForGame, makePlay, processGames, test } from '../controllers/gameController';
-import { getGameStatus } from '../services/gameService';
+import { getGameStatus, getCreateGameStatus } from '../services/gameService';
 
 const router = express.Router();
 
@@ -19,6 +19,15 @@ router.get('/:gameId/status/:userId', async (req, res) => {
   try {
     const gameStatus = await getGameStatus(gameId, userId);
     res.json(gameStatus);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
+  }
+});
+
+router.get('/createStatus', async (req, res) => {
+  try {
+    const status = await getCreateGameStatus();
+    res.json(status);
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'An unknown error occurred' });
   }
