@@ -13,7 +13,7 @@ export const test = async (req: Request, res: Response) => {
 }
 
 export const createGame = async (req: Request, res: Response) => {
-    const { minutes_to_start, max_rounds, sponsor_id, round_length_minutes } = req.body;
+    const { minutesToStart, maxRounds, sponsorId, roundLengthMinutes } = req.body;
 
     // Check for recent games (within last 1 hour)
     const oneHourAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
@@ -31,16 +31,16 @@ export const createGame = async (req: Request, res: Response) => {
         return res.status(400).json({ message: 'A game has already been created within the last hour' });
     }
 
-    if (!minutes_to_start || !max_rounds || !sponsor_id || !round_length_minutes) {
+    if (!minutesToStart || !maxRounds || !sponsorId || !roundLengthMinutes) {
         return res.status(400).json({ 
             message: 'Missing required fields', 
             required: ['minutes_to_start', 'max_rounds', 'sponsor_id', 'round_length_minutes'] 
         });
     }
-    
+
     // round start time is rounded to the nearest 15 minutes
     const registrationStartDate = new Date(Date.now()).toISOString();
-    const baseTime = new Date(Date.now() + minutes_to_start * 60 * 1000);
+    const baseTime = new Date(Date.now() + minutesToStart * 60 * 1000);
     const roundedMinutes = Math.ceil(baseTime.getMinutes() / 15) * 15;
     const gameStartDate = new Date(
         baseTime.setMinutes(roundedMinutes, 0, 0)
@@ -54,9 +54,9 @@ export const createGame = async (req: Request, res: Response) => {
                 game_start_date: gameStartDate,
                 current_round_id: null,
                 completed: false,
-                max_rounds,
-                sponsor_id,
-                round_length_minutes,
+                max_rounds: maxRounds,
+                sponsor_id: sponsorId,
+                round_length_minutes: roundLengthMinutes,
                 state: 'registering' as Database["public"]["Enums"]["game_state"]
             }])
             .select();
@@ -66,14 +66,14 @@ export const createGame = async (req: Request, res: Response) => {
             return res.status(500).json({ message: 'Error creating game', error });
         }
 
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
 
         const fids = await getAllUserIds();
 
         const castHash = await publishNewGameCast(data[0].id);
         const castLink = `https://warpcast.com/rps-referee/${castHash}`;
 
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
         
         await sendNewGameDirectCasts(fids, castLink);
 

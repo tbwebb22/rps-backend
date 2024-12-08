@@ -129,8 +129,7 @@ export async function startGame(gameId: number) {
         // TODO: this function should be publish gameStartedCast
         const castHash = await publishNewRoundCast(gameId, 1);
 
-        console.log(`waiting 5 seconds before sending play direct casts`);
-        await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
 
         const castLink = `https://warpcast.com/rps-referee/${castHash}`;
         await sendNewRoundDirectCasts(players.map(p => p.user_id), castLink);
@@ -227,8 +226,8 @@ export async function processRound(roundId: number) {
 
             const castHash = await publishNewRoundCast(roundData.game_id, nextRoundNumber);
 
-            console.log(`waiting 5 seconds before sending play direct casts`);
-            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+            console.log(`waiting 1 second before sending play direct casts`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
 
             const castLink = `https://warpcast.com/rps-referee/${castHash}`;
             await sendNewRoundDirectCasts(winners, castLink);
@@ -247,8 +246,7 @@ export async function processRound(roundId: number) {
 
             const castHash = await publishFinalCast(roundData.game_id, winnerDetails.Socials.Social[0].profileName);
 
-            console.log(`waiting 5 seconds before sending play direct casts`);
-            await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
 
             const castLink = `https://warpcast.com/rps-referee/${castHash}`;
             // TODO: currently only sending this to the winner
