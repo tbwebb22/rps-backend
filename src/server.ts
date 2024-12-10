@@ -24,12 +24,18 @@ cron.schedule('30 */5 * * * *', async () => {
 });
 
 app.use((req: Request, res: Response, next: NextFunction) => {
-    if (req.method === 'POST' || req.method === 'GET') {
-      authenticateApiKey(req, res, next);
-    } else {
-      next();
+    // Skip authentication for mention endpoint
+    if (req.path === '/api/games/mention') {
+        return next();
     }
-  });
+
+    // Authenticate all other POST/GET requests
+    if (req.method === 'POST' || req.method === 'GET') {
+        authenticateApiKey(req, res, next);
+    } else {
+        next();
+    }
+});
 
 app.use('/api/games', gameRoutes);
 

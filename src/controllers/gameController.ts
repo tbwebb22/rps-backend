@@ -3,13 +3,20 @@ import { supabase } from '../db/supabase';
 import { addUserToDb, _processGames, getAllUserIds } from '../services/gameService';
 import { fetchTokenBalance } from '../services/airstackService';
 import { Database } from '../db/database.types';
-import { sendNewGameDirectCasts } from '../services/directCastService';
+import { sendNewGameDirectCast, sendNewGameDirectCasts } from '../services/directCastService';
 import { publishNewGameCast } from '../services/publishCastService';
 
 export const test = async (req: Request, res: Response) => {
     // await generateBracket("10", "5");
     // await publishNewRoundCast(10, 5);
+    console.log('test endpoint hit');
+    // await sendNewGameDirectCast(347930, "https://warpcast.com/rps-referee/123");
     res.status(200).send({ message: 'Test successful' });
+}
+
+export const mention = async (req: Request, res: Response) => {
+    console.log('mentioned: ', JSON.stringify(req.body));
+    res.status(200).send({ message: 'success' });
 }
 
 export const createGame = async (req: Request, res: Response) => {
