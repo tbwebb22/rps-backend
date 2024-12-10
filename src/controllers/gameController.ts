@@ -9,7 +9,8 @@ import { publishNewGameCast } from '../services/publishCastService';
 export const test = async (req: Request, res: Response) => {
     // await generateBracket("10", "5");
     // await publishNewRoundCast(10, 5);
-    await sendNewGameDirectCast(347930, "https://warpcast.com/rps-referee/123");
+    console.log('test endpoint hit');
+    // await sendNewGameDirectCast(347930, "https://warpcast.com/rps-referee/123");
     res.status(200).send({ message: 'Test successful' });
 }
 
