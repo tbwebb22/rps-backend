@@ -36,6 +36,7 @@ export type Database = {
     Tables: {
       games: {
         Row: {
+          cast_hash: string | null
           completed: boolean
           current_round_id: number | null
           game_start_date: string
@@ -49,6 +50,7 @@ export type Database = {
           winner_reward: number | null
         }
         Insert: {
+          cast_hash?: string | null
           completed?: boolean
           current_round_id?: number | null
           game_start_date: string
@@ -62,6 +64,7 @@ export type Database = {
           winner_reward?: number | null
         }
         Update: {
+          cast_hash?: string | null
           completed?: boolean
           current_round_id?: number | null
           game_start_date?: string

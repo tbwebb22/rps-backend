@@ -4,18 +4,26 @@ import { addUserToDb, _processGames, getAllUserIds } from '../services/gameServi
 import { fetchTokenBalance } from '../services/airstackService';
 import { Database } from '../db/database.types';
 import { sendNewGameDirectCast, sendNewGameDirectCasts } from '../services/directCastService';
-import { publishNewGameCast } from '../services/publishCastService';
+import { publishNewGameCast, testReplyCast } from '../services/publishCastService';
+import { checkMention } from '../services/registrationService';
 
 export const test = async (req: Request, res: Response) => {
     // await generateBracket("10", "5");
     // await publishNewRoundCast(10, 5);
     console.log('test endpoint hit');
+    // await testReplyCast();
     // await sendNewGameDirectCast(347930, "https://warpcast.com/rps-referee/123");
+
+    const testText = 'asdfhttps://rps-frame.vercel.pp/api/game/15asdf';
+    const gameId = await checkMention('asd', 1, testText);
+
     res.status(200).send({ message: 'Test successful' });
 }
 
 export const mention = async (req: Request, res: Response) => {
     console.log('mentioned: ', JSON.stringify(req.body));
+
+    await checkMention(req.body.data.hash, req.body.data.author.fid, req.body.data.text);
     res.status(200).send({ message: 'success' });
 }
 

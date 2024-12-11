@@ -4,6 +4,20 @@ const neynar = new NeynarAPIClient({
     apiKey: process.env.NEYNAR_API_KEY!
 });
 
+export async function testReplyCast() {
+    console.log(`testing reply cast`);
+    const parentHash = '0x27a128b12897841289031e65ce0d583188831b0f';
+    const response = await neynar.publishCast({
+        signerUuid: process.env.SIGNER_UUID!,
+        parent: parentHash,
+        text: `Test reply`,
+        channelId: 'rockpepeslizards',
+        embeds: []
+    });
+
+    return response.cast.hash;
+}
+
 export async function publishNewGameCast(gameId: number) {
     console.log(`publishing new game cast, game: ${gameId}`);
     const response = await neynar.publishCast({
