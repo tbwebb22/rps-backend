@@ -3,7 +3,6 @@ import { supabase } from '../db/supabase';
 import { fetchUserDetails } from './airstackService';
 import { sendNewGameDirectCasts } from './directCastService';
 import { getAllUserIds } from './gameService';
-import { publishNewGameCast } from './publishCastService';
 
 export async function checkMention(castHash: string, fid: number, castText: string) {
     console.log('checking mention: ', castText);
@@ -36,6 +35,7 @@ export async function checkMention(castHash: string, fid: number, castText: stri
 }
 
 export async function startGameRegistration(gameId: number, registrationCastHash: string, sponsorFid: number) {
+    console.log('starting registration for game: ', gameId);
     const { error: startRegistrationError } = await supabase
         .from('games')
         .update({
@@ -49,16 +49,16 @@ export async function startGameRegistration(gameId: number, registrationCastHash
 
     console.log('started registration for game: ', gameId);
 
-    const fids = await getAllUserIds();
-
     const sponsorDetails = await fetchUserDetails(sponsorFid);
     const sponsorUsername = sponsorDetails.Socials.Social[0].profileName;
 
     const castLink = `https://warpcast.com/${sponsorUsername}/${registrationCastHash}`;
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    const fids = await getAllUserIds();
 
     await sendNewGameDirectCasts(fids, castLink, sponsorUsername);
+
+    console.log('sent registration direct casts for game: ', gameId);
 }
 
 

@@ -4,7 +4,7 @@ import { addUserToDb, _processGames, getAllUserIds } from '../services/gameServi
 import { fetchTokenBalance } from '../services/airstackService';
 import { Database } from '../db/database.types';
 import { sendNewGameDirectCast, sendNewGameDirectCasts } from '../services/directCastService';
-import { publishNewGameCast, testReplyCast } from '../services/publishCastService';
+import { testReplyCast } from '../services/publishCastService';
 import { checkMention } from '../services/registrationService';
 
 export const test = async (req: Request, res: Response) => {
