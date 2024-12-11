@@ -28,7 +28,7 @@ export const mention = async (req: Request, res: Response) => {
 }
 
 export const createGame = async (req: Request, res: Response) => {
-    const { minutesToStart, maxRounds, sponsorId, roundLengthMinutes } = req.body;
+    const { minutesToStart, maxRounds, sponsorId, roundLengthMinutes, winnerReward } = req.body;
 
     // Check for recent games (within last 1 hour)
     const oneHourAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
@@ -46,10 +46,10 @@ export const createGame = async (req: Request, res: Response) => {
         return res.status(400).json({ message: 'A game has already been created within the last hour' });
     }
 
-    if (!minutesToStart || !maxRounds || !sponsorId || !roundLengthMinutes) {
+    if (!minutesToStart || !maxRounds || !sponsorId || !roundLengthMinutes || !winnerReward) {
         return res.status(400).json({ 
             message: 'Missing required fields', 
-            required: ['minutes_to_start', 'max_rounds', 'sponsor_id', 'round_length_minutes'] 
+            required: ['minutes_to_start', 'max_rounds', 'sponsor_id', 'round_length_minutes', 'winner_reward'] 
         });
     }
 
@@ -72,7 +72,8 @@ export const createGame = async (req: Request, res: Response) => {
                 max_rounds: maxRounds,
                 sponsor_id: sponsorId,
                 round_length_minutes: roundLengthMinutes,
-                state: 'registering' as Database["public"]["Enums"]["game_state"]
+                winner_reward: winnerReward,
+                state: 'created' as Database["public"]["Enums"]["game_state"]
             }])
             .select();
 
@@ -81,16 +82,16 @@ export const createGame = async (req: Request, res: Response) => {
             return res.status(500).json({ message: 'Error creating game', error });
         }
 
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        // await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
 
-        const fids = await getAllUserIds();
+        // const fids = await getAllUserIds();
 
-        const castHash = await publishNewGameCast(data[0].id);
-        const castLink = `https://warpcast.com/rps-referee/${castHash}`;
+        // const castHash = await publishNewGameCast(data[0].id);
+        // const castLink = `https://warpcast.com/rps-referee/${castHash}`;
 
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        // await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
         
-        await sendNewGameDirectCasts(fids, castLink);
+        // await sendNewGameDirectCasts(fids, castLink);
 
         res.status(201).send({ message: 'Game created', gameId: data[0].id });
     } catch (err) {

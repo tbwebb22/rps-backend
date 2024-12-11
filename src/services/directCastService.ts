@@ -1,8 +1,8 @@
 import axios from "axios";
 
-export async function sendNewGameDirectCasts(fids: number[], castLink: string) {
+export async function sendNewGameDirectCasts(fids: number[], castLink: string, sponsorUsername: string) {
     const results = await Promise.allSettled(
-        fids.map(fid => sendNewGameDirectCast(fid, castLink))
+        fids.map(fid => sendNewGameDirectCast(fid, castLink, sponsorUsername))
     );
 
     // Log failures but don't stop execution
@@ -13,9 +13,9 @@ export async function sendNewGameDirectCasts(fids: number[], castLink: string) {
     }
 }
 
-export async function sendNewGameDirectCast(fid: number, castLink: string) {
+export async function sendNewGameDirectCast(fid: number, castLink: string, sponsorUsername: string) {
     const idempotencyKey = `${castLink}`;
-    const message = `A new tournament has been created! ${castLink}`;
+    const message = `@${sponsorUsername} has sponsored a new tournament! ${castLink}`;
     await sendDirectCast(fid, idempotencyKey, message);
 }
 
