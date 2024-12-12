@@ -1,4 +1,5 @@
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
+import { getRandomSnarkyComment } from "./snarkyCommentService";
 
 const neynar = new NeynarAPIClient({
     apiKey: process.env.NEYNAR_API_KEY!
@@ -28,8 +29,12 @@ export async function publishNewRoundCast(gameId: number, round: number, parentC
         signerUuid: process.env.SIGNER_UUID!,
         parent: parentCastHash,
         text:
-`Tournament #${gameId} Round ${round}
-${matches.map(m => `${process.env.TAG_PLAYERS ? '@' : ''}${m.player1Name} vs ${process.env.TAG_PLAYERS ? '@' : ''}${m.player2Name}`).join('\n')}
+`Tournament #${gameId} // Round ${round}
+
+${matches.map(m => `${process.env.TAG_PLAYERS === "true" ? '@' : ''}${m.player1Name} vs ${process.env.TAG_PLAYERS === "true" ? '@' : ''}${m.player2Name}`).join('\n')}
+
+${getRandomSnarkyComment()}
+
 🗿🐸🦎
 `,
         channelId: 'rockpepeslizards',
@@ -50,9 +55,10 @@ export async function publishFinalCast(gameId: number, parentCastHash: string, w
         signerUuid: process.env.SIGNER_UUID!,
         parent: parentCastHash,
         text:
-            `We have our winner of Tournament #${gameId}!
+`We have our winner of Tournament #${gameId}!
 
-Congrats @${winnerUsername} 🎉
+Congrats ${process.env.TAG_PLAYERS === "true" ? '@' : ''}${winnerUsername} 🎉
+Plz DC @taylorwebb.eth to claim your Moxie!
 
 🗿🐸🦎
 `,

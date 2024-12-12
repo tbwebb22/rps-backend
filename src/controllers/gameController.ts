@@ -28,9 +28,9 @@ export const mention = async (req: Request, res: Response) => {
 }
 
 export const testMention = async (req: Request, res: Response) => {
-    const { cast_hash, auther_fid, cast_text } = req.body;
+    const { cast_hash, author_fid, cast_text } = req.body;
 
-    await checkMention(cast_hash, auther_fid, cast_text);
+    await checkMention(cast_hash, author_fid, cast_text);
     res.status(200).send({ message: 'success' });
 }
 
@@ -38,20 +38,20 @@ export const createGame = async (req: Request, res: Response) => {
     const { minutesToStart, maxRounds, sponsorId, roundLengthMinutes, winnerReward } = req.body;
 
     // Check for recent games (within last 1 hour)
-    const oneHourAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    const { data: recentGames, error: recentGamesError } = await supabase
-        .from('games')
-        .select('id')
-        .gte('registration_start_date', oneHourAgo)
-        .limit(1);
+    // const oneHourAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    // const { data: recentGames, error: recentGamesError } = await supabase
+    //     .from('games')
+    //     .select('id')
+    //     .gte('registration_start_date', oneHourAgo)
+    //     .limit(1);
 
-    if (recentGamesError) {
-        return res.status(500).json({ message: 'Error checking recent games', error: recentGamesError });
-    }
+    // if (recentGamesError) {
+    //     return res.status(500).json({ message: 'Error checking recent games', error: recentGamesError });
+    // }
 
-    if (recentGames && recentGames.length > 0) {
-        return res.status(400).json({ message: 'A game has already been created within the last hour' });
-    }
+    // if (recentGames && recentGames.length > 0) {
+    //     return res.status(400).json({ message: 'A game has already been created within the last hour' });
+    // }
 
     if (!minutesToStart || !maxRounds || !sponsorId || !roundLengthMinutes || !winnerReward) {
         return res.status(400).json({
