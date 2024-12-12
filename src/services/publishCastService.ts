@@ -20,17 +20,16 @@ export async function testReplyCast() {
 
 // TODO: need these matches to have player usernames
 export async function publishNewRoundCast(gameId: number, round: number, parentCastHash: string, matches: {
-    round_id: number;
-    player1_id: number;
-    player2_id: number | null;
+    player1Name: string | undefined;
+    player2Name: string | null | undefined;
 }[]) {
     console.log(`publishing new round cast, game: ${gameId}, round: ${round}`);
     const response = await neynar.publishCast({
         signerUuid: process.env.SIGNER_UUID!,
         parent: parentCastHash,
         text:
-            `Tournament #${gameId} // Round ${round}
-
+`Tournament #${gameId} Round ${round}
+${matches.map(m => `${m.player1Name} vs ${m.player2Name}`).join('\n')}
 🗿🐸🦎
 `,
         channelId: 'rockpepeslizards',

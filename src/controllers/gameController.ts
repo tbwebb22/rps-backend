@@ -47,9 +47,9 @@ export const createGame = async (req: Request, res: Response) => {
     }
 
     if (!minutesToStart || !maxRounds || !sponsorId || !roundLengthMinutes || !winnerReward) {
-        return res.status(400).json({ 
-            message: 'Missing required fields', 
-            required: ['minutes_to_start', 'max_rounds', 'sponsor_id', 'round_length_minutes', 'winner_reward'] 
+        return res.status(400).json({
+            message: 'Missing required fields',
+            required: ['minutes_to_start', 'max_rounds', 'sponsor_id', 'round_length_minutes', 'winner_reward']
         });
     }
 
@@ -61,43 +61,29 @@ export const createGame = async (req: Request, res: Response) => {
         baseTime.setMinutes(roundedMinutes, 0, 0)
     ).toISOString();
 
-    try {
-        const { data, error } = await supabase
-            .from('games')
-            .insert([{
-                registration_start_date: registrationStartDate,
-                game_start_date: gameStartDate,
-                current_round_id: null,
-                completed: false,
-                max_rounds: maxRounds,
-                sponsor_id: sponsorId,
-                round_length_minutes: roundLengthMinutes,
-                winner_reward: winnerReward,
-                state: 'created' as Database["public"]["Enums"]["game_state"]
-            }])
-            .select();
 
-        if (error) {
-            console.error('Error details:', error);
-            return res.status(500).json({ message: 'Error creating game', error });
-        }
+    const { data, error } = await supabase
+        .from('games')
+        .insert([{
+            registration_start_date: registrationStartDate,
+            game_start_date: gameStartDate,
+            current_round_id: null,
+            completed: false,
+            max_rounds: maxRounds,
+            sponsor_id: sponsorId,
+            round_length_minutes: roundLengthMinutes,
+            winner_reward: winnerReward,
+            state: 'created' as Database["public"]["Enums"]["game_state"]
+        }])
+        .select();
 
-        // await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-
-        // const fids = await getAllUserIds();
-
-        // const castHash = await publishNewGameCast(data[0].id);
-        // const castLink = `https://warpcast.com/rps-referee/${castHash}`;
-
-        // await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-        
-        // await sendNewGameDirectCasts(fids, castLink);
-
-        res.status(201).send({ message: 'Game created', gameId: data[0].id });
-    } catch (err) {
-        console.error('Caught error:', err);
-        res.status(500).json({ message: 'An error occurred while creating the game', error: (err as Error).message });
+    if (error) {
+        console.error('Error details:', error);
+        return res.status(500).json({ message: 'Error creating game', error });
     }
+
+    res.status(201).send({ message: 'Game created', gameId: data[0].id });
+
 };
 
 export const registerForGame = async (req: Request, res: Response) => {

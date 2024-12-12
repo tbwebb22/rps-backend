@@ -125,13 +125,9 @@ export async function startGame(gameId: number) {
 
         if (updateGameError) throw updateGameError;
 
-        // TODO: this function should be publish gameStartedCast
-        const castHash = await publishNewRoundCast(gameId, 1, gameData.cast_hash, firstRoundMatches);
+        const matchesWithNames = await getMatchUsernames(firstRoundMatches);
 
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-
-        // const castLink = `https://warpcast.com/rps-referee/${castHash}`;
-        // await sendNewRoundDirectCasts(players.map(p => p.user_id), castLink);
+        await publishNewRoundCast(gameId, 1, gameData.cast_hash, matchesWithNames);
 
         return null;  // Success
     } catch (error) {
@@ -227,7 +223,9 @@ export async function processRound(roundId: number) {
 
             if (!gameData || !gameData.cast_hash) throw new Error(`cast_hash not found for game ${roundData.game_id}`);
 
-            const castHash = await publishNewRoundCast(roundData.game_id, nextRoundNumber, gameData.cast_hash, matches);
+            const matchesWithNames = await getMatchUsernames(matches);
+
+            const castHash = await publishNewRoundCast(roundData.game_id, nextRoundNumber, gameData.cast_hash, matchesWithNames);
         } else {
             // Mark the game as completed and set the winner in the database
             const { data: gameData, error: updateGameError } = await supabase
@@ -521,6 +519,26 @@ export async function getCreateGameStatus(): Promise<CreateStatusResponse> {
         canCreate: waitTimeMinutes <= 0,
         waitTimeMinutes: Math.max(0, waitTimeMinutes)
     };
+}
+
+export async function getMatchUsernames(matches: {
+    round_id: number;
+    player1_id: number;
+    player2_id: number | null;
+}[]) {
+    const playerIds = matches.flatMap(m => [m.player1_id, m.player2_id]).filter(Boolean);
+
+    const { data: userDetails, error } = await supabase
+        .from('users')
+        .select('id, name, display_name, image')
+        .in('id', playerIds);
+
+    if (!userDetails) return [];
+
+    return matches.map(match => ({
+        player1Name: userDetails.find(u => u.id === match.player1_id)?.name,
+        player2Name: match.player2_id ? userDetails.find(u => u.id === match.player2_id)?.name : null
+    }));
 }
 
 // export async function startRegistrations() {
