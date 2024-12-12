@@ -27,6 +27,13 @@ export const mention = async (req: Request, res: Response) => {
     res.status(200).send({ message: 'success' });
 }
 
+export const testMention = async (req: Request, res: Response) => {
+    const { cast_hash, auther_fid, cast_text } = req.body;
+
+    await checkMention(cast_hash, auther_fid, cast_text);
+    res.status(200).send({ message: 'success' });
+}
+
 export const createGame = async (req: Request, res: Response) => {
     const { minutesToStart, maxRounds, sponsorId, roundLengthMinutes, winnerReward } = req.body;
 

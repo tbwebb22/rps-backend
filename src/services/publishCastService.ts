@@ -29,7 +29,7 @@ export async function publishNewRoundCast(gameId: number, round: number, parentC
         parent: parentCastHash,
         text:
 `Tournament #${gameId} Round ${round}
-${matches.map(m => `${m.player1Name} vs ${m.player2Name}`).join('\n')}
+${matches.map(m => `${process.env.TAG_PLAYERS ? '@' : ''}${m.player1Name} vs ${process.env.TAG_PLAYERS ? '@' : ''}${m.player2Name}`).join('\n')}
 🗿🐸🦎
 `,
         channelId: 'rockpepeslizards',
