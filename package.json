@@ -22,7 +22,6 @@
     "body-parser": "^1.20.2",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "node-cron": "^3.0.3",
     "node-fetch": "^3.3.2",
     "playwright": "^1.49.0",
     "puppeteer": "^23.9.0",

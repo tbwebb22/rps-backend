@@ -36,6 +36,7 @@ export type Database = {
     Tables: {
       games: {
         Row: {
+          cast_hash: string | null
           completed: boolean
           current_round_id: number | null
           game_start_date: string
@@ -49,6 +50,7 @@ export type Database = {
           winner_reward: number | null
         }
         Insert: {
+          cast_hash?: string | null
           completed?: boolean
           current_round_id?: number | null
           game_start_date: string
@@ -62,6 +64,7 @@ export type Database = {
           winner_reward?: number | null
         }
         Update: {
+          cast_hash?: string | null
           completed?: boolean
           current_round_id?: number | null
           game_start_date?: string
@@ -227,6 +230,7 @@ export type Database = {
           display_name: string
           id: number
           image: string | null
+          last_played: string | null
           name: string
         }
         Insert: {
@@ -234,6 +238,7 @@ export type Database = {
           display_name: string
           id: number
           image?: string | null
+          last_played?: string | null
           name: string
         }
         Update: {
@@ -241,6 +246,7 @@ export type Database = {
           display_name?: string
           id?: number
           image?: string | null
+          last_played?: string | null
           name?: string
         }
         Relationships: []

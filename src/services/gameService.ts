@@ -2,24 +2,21 @@ import { supabase } from '../db/supabase';
 import { GameData } from '../types/types';
 // import { generateBracket } from './bracketService';
 import { publishFinalCast, publishNewRoundCast } from './publishCastService';
-import { sendFinalDirectCasts, sendNewRoundDirectCasts, sendRegistrationDirectCasts } from './directCastService';
+import { sendFinalDirectCasts } from './directCastService';
 import { fetchUserDetails } from './airstackService';
 import { getMatchWinner } from './gameHelperService';
 
 export const _processGames = async () => {
-    // await startRegistrations();
     await startReadyGames();
     await processActiveGames();
 }
-
-
 
 export async function startReadyGames() {
     const { data: gamesToStart, error: gamesToStartError } = await supabase
         .from('games')
         .select('*')
-        .lte('game_start_date', new Date().toISOString())  // Registration has ended
-        .is('current_round_id', null);  // Game has not started yet
+        .lte('game_start_date', new Date().toISOString())
+        .eq('state', 'registering'); 
 
     if (gamesToStartError) {
         console.error("Error fetching games to start:", gamesToStartError);
@@ -43,11 +40,13 @@ export async function startGame(gameId: number) {
         // Fetch game details including max_rounds
         const { data: gameData, error: gameError } = await supabase
             .from('games')
-            .select('max_rounds, round_length_minutes, game_start_date')
+            .select('max_rounds, round_length_minutes, game_start_date, cast_hash')
             .eq('id', gameId)
             .single();
 
         if (gameError) throw gameError;
+
+        if (!gameData.cast_hash) throw new Error(`cast_hash not found for game ${gameId}`);
 
         const registeredPlayersCount = players.length;
         const maxRounds = gameData.max_rounds;
@@ -126,13 +125,9 @@ export async function startGame(gameId: number) {
 
         if (updateGameError) throw updateGameError;
 
-        // TODO: this function should be publish gameStartedCast
-        const castHash = await publishNewRoundCast(gameId, 1);
+        const matchesWithNames = await getMatchUsernames(firstRoundMatches);
 
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-
-        const castLink = `https://warpcast.com/rps-referee/${castHash}`;
-        await sendNewRoundDirectCasts(players.map(p => p.user_id), castLink);
+        await publishNewRoundCast(gameId, 1, gameData.cast_hash, matchesWithNames);
 
         return null;  // Success
     } catch (error) {
@@ -214,37 +209,41 @@ export async function processRound(roundId: number) {
                 throw new Error(`No round data found for game ${roundData.game_id}, round ${nextRoundNumber}`);
             }
 
-            await createRoundMatches(nextRoundData.id, winners);
+            const matches = await createRoundMatches(nextRoundData.id, winners);
 
             // Update game to the next round
-            const { error: gameUpdateError } = await supabase
+            const { data: gameData,error: gameUpdateError } = await supabase
                 .from('games')
                 .update({ current_round_id: nextRoundData.id })
-                .eq('id', roundData.game_id);
+                .eq('id', roundData.game_id)
+                .select('cast_hash')
+                .single();
 
             if (gameUpdateError) throw gameUpdateError;
 
-            const castHash = await publishNewRoundCast(roundData.game_id, nextRoundNumber);
+            if (!gameData || !gameData.cast_hash) throw new Error(`cast_hash not found for game ${roundData.game_id}`);
 
-            console.log(`waiting 1 second before sending play direct casts`);
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+            const matchesWithNames = await getMatchUsernames(matches);
 
-            const castLink = `https://warpcast.com/rps-referee/${castHash}`;
-            await sendNewRoundDirectCasts(winners, castLink);
+            const castHash = await publishNewRoundCast(roundData.game_id, nextRoundNumber, gameData.cast_hash, matchesWithNames);
         } else {
             // Mark the game as completed and set the winner in the database
-            const { error: updateGameError } = await supabase
+            const { data: gameData, error: updateGameError } = await supabase
                 .from('games')
                 .update({
                     completed: true,
-                    winner_id: winners[0],  // Assuming winners[0] contains the ID of the final winner
+                    winner_id: winners[0],
                     state: 'completed'
                 })
-                .eq('id', roundData.game_id);
+                .eq('id', roundData.game_id)
+                .select('cast_hash')
+                .single();
 
             const winnerDetails = await fetchUserDetails(winners[0]);
 
-            const castHash = await publishFinalCast(roundData.game_id, winnerDetails.Socials.Social[0].profileName);
+            if (!gameData || !gameData.cast_hash) throw new Error(`cast_hash not found for game ${roundData.game_id}`);
+
+            const castHash = await publishFinalCast(roundData.game_id, gameData.cast_hash, winnerDetails.Socials.Social[0].profileName);
 
             await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
 
@@ -297,7 +296,7 @@ export async function createRoundMatches(roundId: number, playerIds: number[]) {
 
         if (matchInsertError) throw matchInsertError;
 
-        return null;  // Success
+        return matches;  // Success
     } catch (error) {
         console.error('Error creating next round matches:', error);
         throw error;
@@ -520,6 +519,26 @@ export async function getCreateGameStatus(): Promise<CreateStatusResponse> {
         canCreate: waitTimeMinutes <= 0,
         waitTimeMinutes: Math.max(0, waitTimeMinutes)
     };
+}
+
+export async function getMatchUsernames(matches: {
+    round_id: number;
+    player1_id: number;
+    player2_id: number | null;
+}[]) {
+    const playerIds = matches.flatMap(m => [m.player1_id, m.player2_id]).filter(Boolean);
+
+    const { data: userDetails, error } = await supabase
+        .from('users')
+        .select('id, name, display_name, image')
+        .in('id', playerIds);
+
+    if (!userDetails) return [];
+
+    return matches.map(match => ({
+        player1Name: userDetails.find(u => u.id === match.player1_id)?.name,
+        player2Name: match.player2_id ? userDetails.find(u => u.id === match.player2_id)?.name : null
+    }));
 }
 
 // export async function startRegistrations() {
