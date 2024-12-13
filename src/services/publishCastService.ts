@@ -35,7 +35,7 @@ ${matches.map(m => `${process.env.TAG_PLAYERS === "true" ? '@' : ''}${m.player1N
 
 ${getRandomSnarkyComment()}
 
-🗿🐸🦎
+🗿 🐸 🦎
 `,
         channelId: 'rockpepeslizards',
         embeds: [
@@ -60,7 +60,7 @@ export async function publishFinalCast(gameId: number, parentCastHash: string, w
 Congrats ${process.env.TAG_PLAYERS === "true" ? '@' : ''}${winnerUsername} 🎉
 Plz DC @taylorwebb.eth to claim your Moxie!
 
-🗿🐸🦎
+🗿 🐸 🦎
 `,
         channelId: 'rockpepeslizards',
         embeds: [
