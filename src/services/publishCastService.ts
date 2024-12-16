@@ -25,13 +25,14 @@ export async function publishNewRoundCast(gameId: number, round: number, parentC
     player2Name: string | null | undefined;
 }[]) {
     console.log(`publishing new round cast, game: ${gameId}, round: ${round}`);
+    const tagPlayers = process.env.TAG_PLAYERS === "true" && matches.length < 8;
     const response = await neynar.publishCast({
         signerUuid: process.env.SIGNER_UUID!,
         parent: parentCastHash,
         text:
 `Tournament #${gameId} // Round ${round}
 
-${matches.map(m => `${process.env.TAG_PLAYERS === "true" ? '@' : ''}${m.player1Name} vs ${process.env.TAG_PLAYERS === "true" ? '@' : ''}${m.player2Name}`).join('\n')}
+${matches.map(m => `${tagPlayers ? '@' : ''}${m.player1Name} vs ${tagPlayers ? '@' : ''}${m.player2Name}`).join('\n')}
 
 ${getRandomSnarkyComment()}
 
