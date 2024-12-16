@@ -127,7 +127,13 @@ export async function startGame(gameId: number) {
 
         const matchesWithNames = await getMatchUsernames(firstRoundMatches);
 
-        await publishNewRoundCast(gameId, 1, gameData.cast_hash, matchesWithNames);
+        const castHash = await publishNewRoundCast(gameId, 1, gameData.cast_hash, matchesWithNames);
+
+        const castLink = `https://warpcast.com/rps-referee/${castHash}`;
+
+        const registeredPlayerIds = players.map(player => player.user_id);
+        
+        await sendNewRoundDirectCasts(registeredPlayerIds, castLink);
 
         return null;  // Success
     } catch (error) {
@@ -226,8 +232,6 @@ export async function processRound(roundId: number) {
             const matchesWithNames = await getMatchUsernames(matches);
 
             const castHash = await publishNewRoundCast(roundData.game_id, nextRoundNumber, gameData.cast_hash, matchesWithNames);
-
-            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
 
             const castLink = `https://warpcast.com/rps-referee/${castHash}`;
             
