@@ -19,24 +19,24 @@ export async function sendNewGameDirectCast(fid: number, castLink: string, spons
     await sendDirectCast(fid, idempotencyKey, message);
 }
 
-// export async function sendNewRoundDirectCasts(fids: number[], castLink: string) {
-//     const results = await Promise.allSettled(
-//         fids.map(fid => sendNewRoundDirectCast(fid, castLink))
-//     );
+export async function sendNewRoundDirectCasts(fids: number[], castLink: string) {
+    const results = await Promise.allSettled(
+        fids.map(fid => sendNewRoundDirectCast(fid, castLink))
+    );
 
-//     // Log failures but don't stop execution
-//     const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
-//     if (failures.length > 0) {
-//         console.error(`Failed to send ${failures.length} direct casts:`,
-//             failures.map(f => f.reason));
-//     }
-// }
+    // Log failures but don't stop execution
+    const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+    if (failures.length > 0) {
+        console.error(`Failed to send ${failures.length} direct casts:`,
+            failures.map(f => f.reason));
+    }
+}
 
-// export async function sendNewRoundDirectCast(fid: number, castLink: string) {
-//     const idempotencyKey = `${castLink}`;
-//     const message = `The next round has begun! ${castLink}`;
-//     await sendDirectCast(fid, idempotencyKey, message);
-// }
+export async function sendNewRoundDirectCast(fid: number, castLink: string) {
+    const idempotencyKey = `${castLink}`;
+    const message = `The next round has begun! ${castLink}`;
+    await sendDirectCast(fid, idempotencyKey, message);
+}
 
 export async function sendFinalDirectCasts(fids: number[], castLink: string) {
     const results = await Promise.allSettled(

@@ -2,7 +2,7 @@ import { supabase } from '../db/supabase';
 import { GameData } from '../types/types';
 // import { generateBracket } from './bracketService';
 import { publishFinalCast, publishNewRoundCast } from './publishCastService';
-import { sendFinalDirectCasts } from './directCastService';
+import { sendFinalDirectCasts, sendNewRoundDirectCasts } from './directCastService';
 import { fetchUserDetails } from './airstackService';
 import { getMatchWinner } from './gameHelperService';
 
@@ -226,6 +226,12 @@ export async function processRound(roundId: number) {
             const matchesWithNames = await getMatchUsernames(matches);
 
             const castHash = await publishNewRoundCast(roundData.game_id, nextRoundNumber, gameData.cast_hash, matchesWithNames);
+
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+
+            const castLink = `https://warpcast.com/rps-referee/${castHash}`;
+            
+            await sendNewRoundDirectCasts(winners, castLink);
         } else {
             // Mark the game as completed and set the winner in the database
             const { data: gameData, error: updateGameError } = await supabase
@@ -239,6 +245,10 @@ export async function processRound(roundId: number) {
                 .select('cast_hash')
                 .single();
 
+            if (updateGameError) {
+                throw updateGameError;
+            }
+
             const winnerDetails = await fetchUserDetails(winners[0]);
 
             if (!gameData || !gameData.cast_hash) throw new Error(`cast_hash not found for game ${roundData.game_id}`);
@@ -250,13 +260,9 @@ export async function processRound(roundId: number) {
             const castLink = `https://warpcast.com/rps-referee/${castHash}`;
             // TODO: currently only sending this to the winner
             await sendFinalDirectCasts(winners, castLink);
-
-            if (updateGameError) {
-                throw updateGameError;
-            }
         }
 
-        return null;  // Success
+        return null;
     } catch (error) {
         return error;
     }
