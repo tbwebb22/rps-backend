@@ -1,24 +1,9 @@
 import { Request, Response } from 'express';
 import { supabase } from '../db/supabase';
-import { addUserToDb, _processGames, getAllUserIds } from '../services/gameService';
+import { addUserToDb, _processGames } from '../services/gameService';
 import { fetchTokenBalance } from '../services/airstackService';
 import { Database } from '../db/database.types';
-import { sendNewGameDirectCast, sendNewGameDirectCasts } from '../services/directCastService';
-import { testReplyCast } from '../services/publishCastService';
 import { checkMention } from '../services/registrationService';
-
-export const test = async (req: Request, res: Response) => {
-    // await generateBracket("10", "5");
-    // await publishNewRoundCast(10, 5);
-    console.log('test endpoint hit');
-    // await testReplyCast();
-    // await sendNewGameDirectCast(347930, "https://warpcast.com/rps-referee/123");
-
-    const testText = 'asdfhttps://rps-frame.vercel.pp/api/game/15asdf';
-    const gameId = await checkMention('asd', 1, testText);
-
-    res.status(200).send({ message: 'Test successful' });
-}
 
 export const mention = async (req: Request, res: Response) => {
     console.log('mentioned: ', JSON.stringify(req.body));
@@ -35,28 +20,25 @@ export const testMention = async (req: Request, res: Response) => {
 }
 
 export const createGame = async (req: Request, res: Response) => {
-    const { minutesToStart, maxRounds, sponsorId, roundLengthMinutes, winnerReward } = req.body;
+    const { minutesToStart, maxRounds, sponsorId, roundLengthMinutes, winnerReward, depositId } = req.body;
 
-    // Check for recent games (within last 1 hour)
-    // const oneHourAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-    // const { data: recentGames, error: recentGamesError } = await supabase
-    //     .from('games')
-    //     .select('id')
-    //     .gte('registration_start_date', oneHourAgo)
-    //     .limit(1);
-
-    // if (recentGamesError) {
-    //     return res.status(500).json({ message: 'Error checking recent games', error: recentGamesError });
-    // }
-
-    // if (recentGames && recentGames.length > 0) {
-    //     return res.status(400).json({ message: 'A game has already been created within the last hour' });
-    // }
-
-    if (!minutesToStart || !maxRounds || !sponsorId || !roundLengthMinutes || !winnerReward) {
+    if (!minutesToStart || !maxRounds || !sponsorId || !roundLengthMinutes || !winnerReward || !depositId) {
         return res.status(400).json({
             message: 'Missing required fields',
-            required: ['minutes_to_start', 'max_rounds', 'sponsor_id', 'round_length_minutes', 'winner_reward']
+            required: ['minutes_to_start', 'max_rounds', 'sponsor_id', 'round_length_minutes', 'winner_reward', 'deposit_id']
+        });
+    }
+
+    // Check if deposit ID has been used
+    const { data: existingGame, error: depositCheckError } = await supabase
+        .from('games')
+        .select('id')
+        .eq('deposit_id', depositId)
+        .single();
+
+    if (existingGame) {
+        return res.status(400).json({
+            message: 'Deposit ID has already been used for another game'
         });
     }
 
@@ -68,6 +50,12 @@ export const createGame = async (req: Request, res: Response) => {
         baseTime.setMinutes(roundedMinutes, 0, 0)
     ).toISOString();
 
+    if (process.env.SKIP_CREATE === 'true') {
+        console.log(`Skipping game creation with deposit ID ${depositId}, sponsor ID: ${sponsorId}, winner reward: ${winnerReward}`);
+
+        res.status(201).send({ message: 'Skipped game creation', gameId: 1 });
+        return;
+    }
 
     const { data, error } = await supabase
         .from('games')
@@ -78,6 +66,7 @@ export const createGame = async (req: Request, res: Response) => {
             completed: false,
             max_rounds: maxRounds,
             sponsor_id: sponsorId,
+            deposit_id: depositId,
             round_length_minutes: roundLengthMinutes,
             winner_reward: winnerReward,
             state: 'created' as Database["public"]["Enums"]["game_state"]
@@ -90,7 +79,6 @@ export const createGame = async (req: Request, res: Response) => {
     }
 
     res.status(201).send({ message: 'Game created', gameId: data[0].id });
-
 };
 
 export const registerForGame = async (req: Request, res: Response) => {
@@ -139,20 +127,6 @@ export const registerForGame = async (req: Request, res: Response) => {
 
         if (existingRegistration) {
             return res.status(400).send('User already registered for this game');
-        }
-
-        // Check if the game is already full
-        const { count, error: countError } = await supabase
-            .from('user_registration')
-            .select('*', { count: 'exact' })
-            .eq('game_id', gameId);
-
-        if (countError || count === null) {
-            return res.status(500).send('Error checking game capacity');
-        }
-
-        if (count >= 2 ** maxRounds) {
-            return res.status(400).send('Game is already full');
         }
 
         const ftBalance = await fetchTokenBalance(fid);
@@ -236,6 +210,17 @@ export const makePlay = async (req: Request, res: Response) => {
             return res.status(500).send('Error making move');
         }
 
+        // Update user's last_played timestamp
+        const { error: userUpdateError } = await supabase
+            .from('users')
+            .update({ last_played: new Date().toISOString() })
+            .eq('id', fid);
+
+        if (userUpdateError) {
+            console.error('Error updating last_played:', userUpdateError);
+            // Don't return error since the move was successful
+        }
+
         res.status(200).send({ message: 'Move recorded' });
     } catch (err) {
         res.status(500).json({ message: 'An error occurred while making a play', error: (err as Error).message });
@@ -252,4 +237,17 @@ export const processGames = async (req: Request, res: Response) => {
         res.status(500).send({ message: 'Error processing games', error });
     }
 };
+
+export const test = async (req: Request, res: Response) => {
+    // await generateBracket("10", "5");
+    // await publishNewRoundCast(10, 5);
+    console.log('test endpoint hit');
+    // await testReplyCast();
+    // await sendNewGameDirectCast(347930, "https://warpcast.com/rps-referee/123");
+
+    const testText = 'asdfhttps://rps-frame.vercel.pp/api/game/15asdf';
+    const gameId = await checkMention('asd', 1, testText);
+
+    res.status(200).send({ message: 'Test successful' });
+}
 

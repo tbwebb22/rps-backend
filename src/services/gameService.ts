@@ -26,12 +26,34 @@ export async function startReadyGames() {
     await Promise.all(gamesToStart.map(game => startGame(game.id)));
 }
 
+const selectPlayers = (players: {
+    user_id: number;
+    registered_at: string;
+    last_played: string | null;
+}[] | null, maxPlayers: number) => {
+    if (!players) return [];
+    return players
+        .sort((a, b) => {
+            // Handle null values by treating them as oldest (beginning of time)
+            const aTime = a.last_played ? new Date(a.last_played).getTime() : 0;
+            const bTime = b.last_played ? new Date(b.last_played).getTime() : 0;
+            return aTime - bTime;
+        })
+        .slice(0, maxPlayers);
+}
+
 export async function startGame(gameId: number) {
     try {
         // Fetch registered players for the game, ordered by registration time
-        const { data: players, error: playerError } = await supabase
+        const { data: registeredPlayers, error: playerError } = await supabase
             .from('user_registration')
-            .select('user_id, registered_at')
+            .select(`
+                user_id, 
+                registered_at,
+                users!inner (
+                    last_played
+                )
+            `)
             .eq('game_id', gameId)
             .order('registered_at', { ascending: true });
 
@@ -48,10 +70,19 @@ export async function startGame(gameId: number) {
 
         if (!gameData.cast_hash) throw new Error(`cast_hash not found for game ${gameId}`);
 
-        const registeredPlayersCount = players.length;
-        const maxRounds = gameData.max_rounds;
+        // const registeredPlayersCount = players.length;
+        // const maxRounds = gameData.max_rounds;
+
+        const selectedPlayers = selectPlayers(
+            registeredPlayers?.map(p => ({
+                user_id: p.user_id,
+                registered_at: p.registered_at,
+                last_played: p.users.last_played
+            })),
+            2 ** gameData.max_rounds
+        );
         const roundLengthMinutes = gameData.round_length_minutes;
-        const actualRounds = Math.min(Math.ceil(Math.log2(registeredPlayersCount)), maxRounds);
+        const actualRounds = Math.min(Math.ceil(Math.log2(selectedPlayers.length)), gameData.max_rounds);
         const gameStartTime = new Date(gameData.game_start_date);
         let roundOneId;
 
@@ -92,15 +123,15 @@ export async function startGame(gameId: number) {
         for (let i = 0; i < firstRoundMatchCount; i++) {
             firstRoundMatches.push({
                 round_id: roundOneId,
-                player1_id: players[i].user_id,
+                player1_id: selectedPlayers[i].user_id,
                 player2_id: null
             });
         }
 
         // Add the second player to the matches if there are enough players
         for (let i = 0; i < firstRoundMatchCount; i++) {
-            if (i + firstRoundMatchCount < players.length) {
-                firstRoundMatches[i].player2_id = players[i + firstRoundMatchCount].user_id;
+            if (i + firstRoundMatchCount < selectedPlayers.length) {
+                firstRoundMatches[i].player2_id = selectedPlayers[i + firstRoundMatchCount].user_id;
             }
         }
 
@@ -131,7 +162,7 @@ export async function startGame(gameId: number) {
 
         const castLink = `https://warpcast.com/rps-referee/${castHash}`;
 
-        const registeredPlayerIds = players.map(player => player.user_id);
+        const registeredPlayerIds = selectedPlayers.map(player => player.user_id);
         
         await sendNewRoundDirectCasts(registeredPlayerIds, castLink);
 
@@ -434,9 +465,9 @@ export async function getGameStatus(gameId: string, userId: string): Promise<Gam
         gameState: getGameState(game, currentTime),
         registrationStart: game.registration_start_date,
         gameStart: game.game_start_date,
-        maxRegistrations: 2 ** game.max_rounds,
         currentRegistrations: game.user_registrations.length,
         userRegistered: game.user_registrations.some(reg => reg.user_id === Number(userId)),
+        castHash: game.cast_hash,
         rounds: game.rounds
             .sort((a, b) => a.id - b.id)  // Sort rounds by id, smallest first
             .map(round => {
