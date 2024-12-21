@@ -39,6 +39,7 @@ export type Database = {
           cast_hash: string | null
           completed: boolean
           current_round_id: number | null
+          deposit_id: number | null
           game_start_date: string
           id: number
           max_rounds: number
@@ -53,6 +54,7 @@ export type Database = {
           cast_hash?: string | null
           completed?: boolean
           current_round_id?: number | null
+          deposit_id?: number | null
           game_start_date: string
           id?: number
           max_rounds: number
@@ -67,6 +69,7 @@ export type Database = {
           cast_hash?: string | null
           completed?: boolean
           current_round_id?: number | null
+          deposit_id?: number | null
           game_start_date?: string
           id?: number
           max_rounds?: number
