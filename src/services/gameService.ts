@@ -2,7 +2,7 @@ import { supabase } from '../db/supabase';
 import { GameData } from '../types/types';
 // import { generateBracket } from './bracketService';
 import { publishFinalCast, publishNewRoundCast } from './publishCastService';
-import { sendFinalDirectCasts, sendNewRoundDirectCasts } from './directCastService';
+import { sendFinalDirectCasts, sendGameStartedDirectCasts, sendNewRoundDirectCasts } from './directCastService';
 import { fetchUserDetails } from './airstackService';
 import { getMatchWinner } from './gameHelperService';
 
@@ -164,7 +164,7 @@ export async function startGame(gameId: number) {
 
         const registeredPlayerIds = selectedPlayers.map(player => player.user_id);
         
-        await sendNewRoundDirectCasts(registeredPlayerIds, castLink);
+        await sendGameStartedDirectCasts(registeredPlayerIds, castLink);
 
         return null;  // Success
     } catch (error) {
