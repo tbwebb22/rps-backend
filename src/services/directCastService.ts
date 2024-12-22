@@ -15,7 +15,26 @@ export async function sendNewGameDirectCasts(fids: number[], castLink: string, s
 
 export async function sendNewGameDirectCast(fid: number, castLink: string, sponsorUsername: string) {
     const idempotencyKey = `${castLink}`;
-    const message = `@${sponsorUsername} has sponsored a new Rock Pepe Slizards tournament! Register at their cast:${castLink}`;
+    const message = `@${sponsorUsername} has launched a tournament! Register at their cast: ${castLink}`;
+    await sendDirectCast(fid, idempotencyKey, message);
+}
+
+export async function sendGameStartedDirectCasts(fids: number[], castLink: string) {
+    const results = await Promise.allSettled(
+        fids.map(fid => sendNewRoundDirectCast(fid, castLink))
+    );
+
+    // Log failures but don't stop execution
+    const failures = results.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+    if (failures.length > 0) {
+        console.error(`Failed to send ${failures.length} direct casts:`,
+            failures.map(f => f.reason));
+    }
+}
+
+export async function sendGameStartedDirectCast(fid: number, castLink: string) {
+    const idempotencyKey = `${castLink}`;
+    const message = `The tournament has begun! ${castLink}`;
     await sendDirectCast(fid, idempotencyKey, message);
 }
 
