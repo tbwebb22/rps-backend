@@ -6,7 +6,7 @@ import { getAllUserIds } from './gameService';
 
 export async function checkMention(castHash: string, fid: number, castText: string) {
     console.log('checking mention: ', castText);
-    const pattern = /https:\/\/rps-frame\.vercel\.app\/api\/game\/(\d+)/;
+    const pattern = /Tournament #(\d+)!/;
     const match = castText.match(pattern);
 
     if (!match) return;
